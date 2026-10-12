@@ -104,6 +104,7 @@ GET /engines/asr
 GET /engines/audiocpp/runtime/install/status
 GET /engines/diarisation
 GET /engines/effects/presets
+GET /engines/licenses
 GET /engines/llm
 GET /engines/sidecar/{engine_id}/install/status
 GET /engines/sonitranslate/status
@@ -134,6 +135,7 @@ GET /models/install/status
 GET /models/licenses/acceptance/{repo_id:path}
 GET /models/licenses/details/{repo_id:path}
 GET /models/licenses/receipts/{plan_digest}
+GET /music/status
 GET /openapi.json
 GET /personalities
 GET /preview/{filename}
@@ -151,6 +153,7 @@ GET /setup/download-stream
 GET /setup/preflight
 GET /setup/recommendations
 GET /setup/status
+GET /sfx/status
 GET /startup/progress
 GET /stats/usage
 GET /sysinfo
@@ -223,6 +226,7 @@ POST /dub/translate
 POST /dub/upload
 POST /dub/use-downloaded-captions/{job_id}
 POST /engines/audiocpp/runtime/install
+POST /engines/commercial-only
 POST /engines/diarisation/select
 POST /engines/select
 POST /engines/sidecar/{engine_id}/install
@@ -266,6 +270,8 @@ POST /models/install/prepare
 POST /models/licenses/accept
 POST /models/licenses/revoke
 POST /models/licenses/verify/{plan_digest}
+POST /music/generate
+POST /music/install
 POST /personas/export/{profile_id}
 POST /personas/import
 POST /personas/inspect
@@ -279,6 +285,8 @@ POST /pronunciation
 POST /pronunciation/import
 POST /pronunciation/test
 POST /setup/warmup
+POST /sfx/generate
+POST /sfx/install
 POST /stories/encode
 POST /system/crash/ack
 POST /system/diagnostic-bundle
@@ -298,6 +306,7 @@ POST /tools/incremental
 POST /tools/normalize-speech
 POST /tools/probe
 POST /tools/rate-fit
+POST /tools/transliterate
 POST /tools/video-context/{job_id}
 POST /transcribe
 POST /v1/audio/speech

@@ -743,6 +743,8 @@ def _phase_a_build_inner() -> None:
     from api.routers import mcp_bindings as _mcp_bindings_router  # noqa: E402
     from api.routers import telephony_twilio as _telephony_twilio_router  # noqa: E402
     from api.routers import calls as _calls_router  # noqa: E402
+    from api.routers import sound_effects as _sound_effects_router  # noqa: E402
+    from api.routers import music as _music_router  # noqa: E402
     _router_modules.extend([
         system, profiles, profile_images, exports, generation, voice_convert, dub_core, dub_generate,
         dub_export, dub_translate, projects, glossary, engines, tools,
@@ -751,7 +753,7 @@ def _phase_a_build_inner() -> None:
         openai_compat, tts_stream, marketplace, personas, sonitranslate,
         audiobook, longform_jobs, pronunciation, settings_router,
         media_tools_router, auth_router, _mcp_bindings_router,
-        _telephony_twilio_router, _calls_router,
+        _telephony_twilio_router, _calls_router, _sound_effects_router, _music_router,
     ])
     # Download-acceleration state, once, for triage-from-logs (FDL-03).
     try:
@@ -1432,6 +1434,23 @@ async def no_audio_track_handler(request: Request, exc: NoAudioTrackError):
     return JSONResponse(
         status_code=422,
         content={"detail": no_audio_track_detail()},
+        headers=_cors_headers_for(request),
+    )
+
+
+from services.license_guard import CommercialUseBlocked  # noqa: E402
+
+
+@app.exception_handler(CommercialUseBlocked)
+async def commercial_use_blocked_handler(request: Request, exc: CommercialUseBlocked):
+    """403 when Commercial-safe mode refuses an engine/tool whose weights are not cleared for commercial use.
+
+    One shape for every route (generate, stream, dub, music, sound effects); ``code`` lets the client show
+    its localized notice and the licence fields say why.
+    """
+    return JSONResponse(
+        status_code=403,
+        content={"detail": exc.detail()},
         headers=_cors_headers_for(request),
     )
 

@@ -14,6 +14,10 @@ export interface CloneSettings {
   steps: number;
   wavBits: 16 | 24 | 32;
   effectPreset: 'broadcast' | 'raw';
+  /** Breaths, room tone and natural pacing on the finished take (opt-in). */
+  humanize: boolean;
+  /** 0–1; only read while `humanize` is on. */
+  humanizeStrength: number;
   cfg: number;
   speed: number;
   tShift: number;
@@ -37,6 +41,8 @@ export const DEFAULT_CLONE_SETTINGS: CloneSettings = {
   steps: 16, // ~16 avoids ODE destabilisation in the flow-matcher.
   wavBits: 16,
   effectPreset: 'broadcast',
+  humanize: false,
+  humanizeStrength: 0.6,
   cfg: 2.0,
   speed: 1.0,
   tShift: 0.1,
@@ -55,6 +61,7 @@ export const DEFAULT_CLONE_SETTINGS: CloneSettings = {
 export function acceptsCloneSetting(key: keyof CloneSettings, value: unknown): boolean {
   if (key === 'wavBits') return value === 16 || value === 24 || value === 32;
   if (key === 'effectPreset') return value === 'broadcast' || value === 'raw';
+  if (key === 'humanizeStrength') return typeof value === 'number' && value >= 0 && value <= 1;
   if (key === 'selectedProfileId') return value === null || typeof value === 'string';
   const expected = typeof DEFAULT_CLONE_SETTINGS[key];
   if (typeof value !== expected) return false;
@@ -135,8 +142,8 @@ export function patchCloneSettings(partial: Partial<CloneSettings>): void {
 
 /** Restore next-take quality without touching voice controls or the draft. */
 export function resetAudioQuality(): void {
-  const { wavBits, steps, effectPreset } = DEFAULT_CLONE_SETTINGS;
-  patchCloneSettings({ wavBits, steps, effectPreset });
+  const { wavBits, steps, effectPreset, humanize, humanizeStrength } = DEFAULT_CLONE_SETTINGS;
+  patchCloneSettings({ wavBits, steps, effectPreset, humanize, humanizeStrength });
 }
 
 /** Restore voice controls without changing next-take quality or the draft. */
@@ -163,6 +170,8 @@ export function resetOverrides(): void {
   patchCloneSettings({
     wavBits: DEFAULT_CLONE_SETTINGS.wavBits,
     effectPreset: DEFAULT_CLONE_SETTINGS.effectPreset,
+    humanize: DEFAULT_CLONE_SETTINGS.humanize,
+    humanizeStrength: DEFAULT_CLONE_SETTINGS.humanizeStrength,
     steps,
     cfg,
     speed,

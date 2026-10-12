@@ -18,6 +18,9 @@ The six consumption points today:
                             taxonomy tokens; /tools/direction + dub generate)
     dictation_refinement  — services/refinement.py (dictation transcript
                             cleanup on finals)
+    transliteration       — services/transliteration.py (Script box: Roman
+                            Hindi and other romanized text to the language's
+                            own script; /tools/transliterate)
 
 Design rules:
 
@@ -78,6 +81,7 @@ _SKILLS: tuple[LLMSkill, ...] = (
     _skill("glossary_extract"),
     _skill("direction_parse"),
     _skill("dictation_refinement"),
+    _skill("transliteration"),
 )
 
 _BY_ID: dict[str, LLMSkill] = {s.id: s for s in _SKILLS}

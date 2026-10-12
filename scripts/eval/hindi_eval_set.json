@@ -1,0 +1,31 @@
+{
+  "language": "Hindi",
+  "description": "Hindi realism eval set: each line exercises one thing a Hindi listener notices first. Written for VoiceStudio; free to reuse.",
+  "items": [
+    {"id": "num-01", "category": "numbers", "text": "इस गाँव में कुल 42 घर हैं और हर घर में औसतन 6 लोग रहते हैं।"},
+    {"id": "num-02", "category": "numbers", "text": "यह किला 1984 में फिर से खोला गया था।"},
+    {"id": "num-03", "category": "numbers", "text": "2026 तक यहाँ की आबादी 1,50,000 हो जाएगी।"},
+    {"id": "num-04", "category": "numbers", "text": "सरकार ने इस योजना के लिए 5,00,00,000 का बजट रखा है।"},
+    {"id": "num-05", "category": "numbers", "text": "पहाड़ की चोटी समुद्र तल से 3.5 किलोमीटर ऊपर है।"},
+    {"id": "fmt-01", "category": "money-time-date", "text": "एक कप चाय ₹15 की है और समोसा ₹10 का।"},
+    {"id": "fmt-02", "category": "money-time-date", "text": "ट्रेन सुबह 5:30 बजे निकलती है और शाम 7:45 बजे पहुँचती है।"},
+    {"id": "fmt-03", "category": "money-time-date", "text": "यह मेला 15/08/2026 को शुरू होगा।"},
+    {"id": "fmt-04", "category": "money-time-date", "text": "कंपनी ने ₹2.5 लाख का इनाम घोषित किया और 1.5 घंटे में सारे टिकट बिक गए।"},
+    {"id": "fmt-05", "category": "money-time-date", "text": "ज़्यादा जानकारी के लिए 9876543210 पर कॉल करें।"},
+    {"id": "mix-01", "category": "hinglish-acronyms", "text": "कल की मीटिंग में CEO ने नया प्लान शेयर किया।"},
+    {"id": "mix-02", "category": "hinglish-acronyms", "text": "मैंने UPI से पेमेंट कर दिया है, आप चेक कर लीजिए।"},
+    {"id": "mix-03", "category": "hinglish-acronyms", "text": "ISRO का यह मिशन पूरी दुनिया के लिए एक बड़ी ख़बर है।"},
+    {"id": "mix-04", "category": "hinglish-acronyms", "text": "मेरा फ़ोन चार्ज नहीं हो रहा, शायद केबल ख़राब है।"},
+    {"id": "int-01", "category": "questions-exclamations", "text": "क्या आपने कभी सोचा है कि तारे रात में ही क्यों दिखते हैं?"},
+    {"id": "int-02", "category": "questions-exclamations", "text": "अरे वाह! यह तो कमाल हो गया!"},
+    {"id": "int-03", "category": "questions-exclamations", "text": "तुम सच में कल सुबह इतनी जल्दी उठोगे?"},
+    {"id": "long-01", "category": "long-sentences", "text": "जब सूरज की पहली किरण बर्फ़ से ढकी चोटियों पर पड़ती है तो पूरा आसमान सुनहरा हो जाता है और घाटी में बसे छोटे छोटे गाँवों में धीरे धीरे दिन की हलचल शुरू होने लगती है।"},
+    {"id": "long-02", "category": "long-sentences", "text": "दादी कहती थीं कि मेहनत करने वालों की कभी हार नहीं होती लेकिन उस दिन पहली बार मुझे लगा कि शायद किस्मत भी कुछ मायने रखती है।"},
+    {"id": "long-03", "category": "long-sentences", "text": "यह छोटा सा जीव अपनी ज़िंदगी का ज़्यादातर समय पेड़ों की ऊँची डालियों पर बिताता है और सिर्फ़ खाने की तलाश में ही ज़मीन पर उतरता है।"},
+    {"id": "nar-01", "category": "narration", "text": "और फिर, एक पल में, सब कुछ बदल गया।"},
+    {"id": "nar-02", "category": "narration", "text": "बारिश की बूँदें खिड़की पर धीरे धीरे गिर रही थीं, जैसे कोई पुरानी कहानी सुना रही हों।"},
+    {"id": "nar-03", "category": "narration", "text": "उसने मुस्कुराकर कहा, चिंता मत करो, सब ठीक हो जाएगा।"},
+    {"id": "name-01", "category": "names-places", "text": "रामलाल जी हर सुबह ऋषिकेश के घाट पर गंगा आरती देखने जाते हैं।"},
+    {"id": "name-02", "category": "names-places", "text": "प्रियंका और अर्जुन अगले महीने जैसलमेर घूमने जा रहे हैं।"}
+  ]
+}

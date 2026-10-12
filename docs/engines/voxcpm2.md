@@ -67,6 +67,15 @@ now retried once with a fresh client. See
   loudness normalization applies.
 - A trailing-silence guard trims long near-silent tails from generations,
   keeping a short natural tail.
+- **Run-on guard.** VoxCPM2 decides for itself when to stop, and now and then
+  it keeps talking after the line: invented syllables after the last word.
+  On a 25-line Hindi test set this happened on 3 lines (one question came
+  back 26.7 s long). A take more than 2.3 times as long as its text takes to
+  read, and at least 2.5 s over, is rendered again with another seed, up to
+  twice; the first retry that is neither run-on nor too short to hold the line
+  is kept, otherwise the shortest take. On that test set one retry fixed two
+  of the three lines and a second retry the third. A normal take is rendered
+  once, as before; only the takes that ran on cost extra renders.
 
 ## Known limits
 

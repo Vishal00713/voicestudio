@@ -92,6 +92,13 @@ describe('toGenerateForm', () => {
     const chosen = toGenerateForm({ ...BASE_INPUT, wavBits: 32, effectPreset: 'raw', steps: 32 });
     expect(chosen.get('wav_bits')).toBe('32');
     expect(chosen.get('effect_preset')).toBe('raw');
+    expect(defaults.get('humanize')).toBeNull();
+    expect(defaults.get('humanize_strength')).toBeNull();
+    const human = toGenerateForm({ ...BASE_INPUT, humanize: true, humanizeStrength: 0.8 });
+    expect(human.get('humanize')).toBe('true');
+    expect(human.get('humanize_strength')).toBe('0.8');
+    const off = toGenerateForm({ ...BASE_INPUT, humanize: false, humanizeStrength: 0.8 });
+    expect(off.get('humanize')).toBeNull();
     expect(chosen.get('num_step')).toBe('32');
   });
   it('maps tuning fields and explicitly sends Auto to override a saved voice language', () => {
@@ -190,6 +197,8 @@ describe('parseGenerateHeaders', () => {
       'X-OmniVoice-Routing-Reason': 'no CUDA',
       'X-OmniVoice-Dropped-Chunks': '2',
       'X-OmniVoice-Dropped-Text': 'lost | words',
+      'X-OmniVoice-Expression-Dropped': '[excited], [inhales]',
+      'X-OmniVoice-Reference-Script': 'latin',
     });
     expect(parseGenerateHeaders(headers)).toEqual({
       id: 'abc',
@@ -199,6 +208,8 @@ describe('parseGenerateHeaders', () => {
       seed: 42,
       routing: { status: 'cpu_fallback', reason: 'no CUDA' },
       dropped: { count: 2, text: 'lost | words' },
+      expressionDropped: ['[excited]', '[inhales]'],
+      referenceScript: 'latin',
     });
   });
 
@@ -212,6 +223,8 @@ describe('parseGenerateHeaders', () => {
       seed: null,
       routing: null,
       dropped: null,
+      expressionDropped: [],
+      referenceScript: null,
     });
   });
 });

@@ -96,6 +96,12 @@ def _family_payload(family: str, module):
             if engine_id == active == "mlx-audio":
                 # Constructor resolves model preferences only; never loads weights.
                 backend["supports_cloning"] = tts_backend.MLXAudioBackend().supports_cloning
+            # Weights licence for the Commercial-safe badge (services/license_guard.py).
+            from dataclasses import asdict as _asdict
+
+            from services.license_guard import license_for
+
+            backend["weights_license"] = _asdict(license_for(engine_id))
             if engine_id in LICENSE_GATED_ENGINES:
                 backend["license_required"] = True
                 try:
@@ -150,6 +156,27 @@ def list_all_engines(request: Request):
 @router.get("/engines/tts")
 def list_tts_backends(request: Request):
     return _request_install_capability(_family_payload("tts", tts_backend), request)
+
+
+class CommercialOnlyRequest(BaseModel):
+    enabled: bool
+
+
+@router.get("/engines/licenses")
+def engine_licenses():
+    """Weights licence of every TTS engine and tool, and whether Commercial-safe mode is on."""
+    from services import license_guard
+
+    return license_guard.payload()
+
+
+@router.post("/engines/commercial-only", dependencies=[Depends(require_admin_action)])
+def set_commercial_only(req: CommercialOnlyRequest):
+    """Turn Commercial-safe mode on/off (an OMNIVOICE_COMMERCIAL_ONLY env pin wins and is reported)."""
+    from services import license_guard
+
+    license_guard.set_commercial_only(req.enabled)
+    return license_guard.payload()
 
 
 @router.get(

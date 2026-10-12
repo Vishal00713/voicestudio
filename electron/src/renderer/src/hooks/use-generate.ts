@@ -37,7 +37,16 @@ import { beginAppActivity } from '@/lib/app-activity';
 import { useTtsReadiness } from './use-tts-readiness';
 import { useEngines } from './use-engines';
 import { recordActionBreadcrumb } from '@/lib/report-breadcrumb';
+import {
+  addDesignVariation,
+  clearDesignVariations,
+  designVariationKey,
+} from '@/lib/store/design-variations';
+import { pickDesignSeed } from '@shared/utils/seed';
 import { announceDroppedSpeech } from '@/lib/dropped-speech';
+
+/** How long the expression and reference-language notices stay up. */
+const NOTICE_TOAST_MS = 8000;
 
 const TIMER_TICK_MS = 100;
 const PROGRESS_THROTTLE_MS = 100;
@@ -60,6 +69,8 @@ export interface DesignGenerateInput {
   profileId?: string | null;
   /** Stored with the take so reopening it rebuilds the same draft (#2389). */
   recipe?: DesignRecipe;
+  /** Render this many candidate voices, each from a fresh seed, to compare. */
+  variations?: number;
 }
 
 /**
@@ -89,6 +100,8 @@ export interface UseGenerateClone {
   /** 0..100 while the WAV body streams in; null when unknown. */
   progress: number | null;
   stage: 'preparing' | 'loading' | 'generating' | 'receiving';
+  /** Which candidate is rendering during a variations run (1-based). */
+  variation: { index: number; total: number } | null;
   modelStage: 'importing' | 'loading_weights' | 'loading_asr' | 'compiling' | null;
   /** 0..100 reported while model weights or runtime are loading. */
   modelProgress: number | null;
@@ -134,6 +147,20 @@ function announceInstructWarnings(free: string): string {
 
 function announceResultNotices(result: GenerateResult): void {
   announceDroppedSpeech(result.dropped);
+  // Audio tags this engine cannot perform were left out rather than spoken.
+  if (result.expressionDropped?.length) {
+    toast.warning(tr('tts.expressionDropped', { tags: result.expressionDropped.join(' ') }), {
+      id: 'expression-dropped',
+      duration: NOTICE_TOAST_MS,
+    });
+  }
+  // The voice sample is in another language: the clone keeps its accent.
+  if (result.referenceScript) {
+    toast.warning(tr('tts.referenceLanguage'), {
+      id: 'reference-language',
+      duration: NOTICE_TOAST_MS,
+    });
+  }
   // The backend only sets the routing headers on cpu_fallback / accelerated-
   // with-caveat, so their presence is the signal.
   if (result.routing && result.routing.status !== lastRoutingStatus) {
@@ -175,6 +202,7 @@ function useGenerateController(): UseGenerateClone {
   const [stage, setStage] = useState<UseGenerateClone['stage']>('preparing');
   const [modelStage, setModelStage] = useState<UseGenerateClone['modelStage']>(null);
   const [modelProgress, setModelProgress] = useState<number | null>(null);
+  const [variation, setVariation] = useState<UseGenerateClone['variation']>(null);
   const abortRef = useRef<AbortController | null>(null);
   const reportModeRef = useRef<'clone' | 'design' | null>(null);
   const cancelledRef = useRef(false);
@@ -335,6 +363,8 @@ function useGenerateController(): UseGenerateClone {
           ),
           wavBits: settings.wavBits,
           effectPreset: settings.effectPreset,
+          humanize: settings.humanize,
+          humanizeStrength: settings.humanizeStrength,
           cfg: settings.cfg,
           speed: settings.speed,
           tShift: settings.tShift,
@@ -345,6 +375,27 @@ function useGenerateController(): UseGenerateClone {
           postprocess: settings.postprocess,
           duration: settings.duration,
         };
+        const variations = design?.variations ?? 0;
+        if (variations > 0) {
+          clearDesignVariations(designVariationKey(design?.instruct ?? '', design?.recipe));
+          for (let index = 1; index <= variations; index += 1) {
+            setVariation({ index, total: variations });
+            setStage('preparing');
+            setProgress(null);
+            const seed = pickDesignSeed(false, null);
+            const result = await generateClone(
+              { ...input, seed },
+              { signal: controller.signal, onProgress },
+            );
+            announceResultNotices(result);
+            setLatestOutput(result, input.text);
+            addDesignVariation(result, seed, input.text);
+          }
+          recordActionBreadcrumb(`generate:${reportMode}:complete`);
+          toast.success(tr('tts.generationComplete'));
+          void queryClient.invalidateQueries({ queryKey: queryKeys.history }).catch(() => {});
+          return;
+        }
         const result = await generateClone(input, {
           signal: controller.signal,
           onProgress,
@@ -379,6 +430,7 @@ function useGenerateController(): UseGenerateClone {
         if (timerRef.current) clearInterval(timerRef.current);
         timerRef.current = null;
         setIsGenerating(false);
+        setVariation(null);
         setProgress(null);
         setModelStage(null);
         setModelProgress(null);
@@ -408,6 +460,7 @@ function useGenerateController(): UseGenerateClone {
     elapsedSeconds,
     progress,
     stage,
+    variation,
     modelStage,
     modelProgress,
     error,

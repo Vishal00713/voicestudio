@@ -110,7 +110,34 @@ it('hides unsupported sampling controls and disables quality changes while gener
   for (const radio of screen.getAllByRole('radio')) expect(radio).toBeDisabled();
   fireEvent.keyDown(screen.getByRole('radiogroup'), { key: 'End' });
   expect(cloneSettingsStore.state.wavBits).toBe(16);
-  expect(screen.getByRole('switch')).toHaveAttribute('aria-disabled', 'true');
+  expect(screen.getByRole('switch', { name: 'cloneQuality.mastering' })).toHaveAttribute(
+    'aria-disabled',
+    'true',
+  );
+  expect(screen.getByRole('switch', { name: 'cloneQuality.humanize' })).toHaveAttribute(
+    'aria-disabled',
+    'true',
+  );
+});
+
+it('turns on Sound more human, reveals its strength and resets with audio quality', async () => {
+  render(<QualityControls />);
+  open();
+  expect(screen.queryByRole('slider', { name: 'cloneQuality.humanizeStrength' })).toBeNull();
+  fireEvent.click(screen.getByRole('switch', { name: 'cloneQuality.humanize' }));
+  expect(cloneSettingsStore.state.humanize).toBe(true);
+  const strength = await screen.findByRole('slider', { name: 'cloneQuality.humanizeStrength' });
+  expect(strength).toHaveAttribute('max', '100');
+  expect(screen.getByText('60%')).toBeInTheDocument();
+  await act(async () => {
+    fireEvent.keyDown(strength, { key: 'ArrowRight' });
+  });
+  expect(cloneSettingsStore.state.humanizeStrength).toBeCloseTo(0.65);
+  expect(screen.getByText('65%')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'clone.reset_overrides' }));
+  expect(cloneSettingsStore.state.humanize).toBe(false);
+  expect(cloneSettingsStore.state.humanizeStrength).toBe(DEFAULT_CLONE_SETTINGS.humanizeStrength);
+  expect(screen.queryByRole('slider', { name: 'cloneQuality.humanizeStrength' })).toBeNull();
 });
 
 it.each(['omnivoice-subprocess', 'voxcpm2', 'dots-tts', 'supertonic3'])(

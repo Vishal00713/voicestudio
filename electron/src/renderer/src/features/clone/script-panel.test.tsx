@@ -8,6 +8,7 @@ const setCloneSetting = vi.fn();
 vi.mock('@/lib/languages', () => ({
   LANGUAGES: ['Auto'],
   POPULAR_LANGUAGES: [],
+  PERFORMANCE_TAGS: ['[whispers]'],
   TAGS: ['[laughter]', '[sigh]'],
 }));
 
@@ -28,6 +29,13 @@ describe('ScriptPanel', () => {
 
     expect(setCloneSetting).toHaveBeenCalledWith('text', 'hello[laughter] world');
     expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('offers the ElevenLabs-style performance cues ahead of the native tokens', () => {
+    render(<ScriptPanel />);
+    fireEvent.click(screen.getByRole('button', { name: 'Insert expression token' }));
+    const items = screen.getAllByRole('menuitem').map((item) => item.textContent);
+    expect(items).toEqual(['[whispers]', '[laughter]', '[sigh]']);
   });
 
   it('does not open or reopen the token menu when the script box is clicked', () => {

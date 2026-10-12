@@ -50,6 +50,42 @@ the app's added EQ, compression and normalization; engine postprocessing and
 the existing provenance watermark setting remain in effect. An engine that
 performs its own mastering continues to skip the app's mastering pre-stage.
 
+**Sound more human** (off by default) takes the synthetic tells out of a
+finished take without touching the model. It runs the same on every engine
+and platform, and a pinned seed renders it the same way twice:
+
+- **Room tone.** A `[pause]` and every gap between stitched chunks is exact
+  digital silence, which no microphone has ever recorded. A quiet noise bed
+  runs under the whole take so a pause sounds like the same room as the
+  words. For a clone, the bed copies the reference clip's own room: its noise
+  spectrum, at the same distance under the voice as in the clip. Without a
+  usable reference (voice design, a clip with digital silence or no pauses,
+  or one noisier than 25 dB under its voice) the bed is pink noise at about
+  -61 dBFS.
+- **Breaths.** Inhales are placed at the end of silences of 350 ms or more,
+  finishing just before the next word. Not every gap gets one, and the
+  silence after the last word never does. For a clone they are the
+  speaker's own inhales, cut from the reference clip at their original level
+  relative to the voice; a clip without audible inhales falls back to
+  synthesized ones.
+- **Pacing.** Long text is rendered in chunks. Each chunk's own lead-in and
+  tail are trimmed, the gap is sized by what ended the chunk (a comma, a full
+  stop, an ellipsis, a paragraph break) with a little random jitter, and each
+  chunk's tempo and pitch drift by about a percent. Explicit `[pause Nms]`
+  lengths are never changed.
+
+The **How much** slider (default 60 %) scales the breath level and how often
+they appear, the drift and the jitter together, and moves a copied room
+between 5 dB quieter and 4 dB louder than the reference. The pass runs before mastering
+so the room tone and breaths get the same EQ and compression as the voice; it
+also runs with **Even out volume** off. A take with no speech in it (a failed
+render, or pause markers only) is left untouched so the problem stays visible.
+On the API it is `humanize=true` plus `humanize_strength` (0–1) on
+`POST /generate`, and the same two fields in the JSON body of the
+OpenAI-compatible `POST /v1/audio/speech` (a VoiceStudio extension; a voice
+profile id in `voice` lends its reference's room and breaths). `/ws/tts` does
+not take it yet.
+
 The final playback response uses the saved WAV itself. Streaming previews still
 use PCM16; their completed take uses the selected precision. Engines that only
 deliver PCM16 cannot recover extra detail through a larger export.

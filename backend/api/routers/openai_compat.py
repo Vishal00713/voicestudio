@@ -312,6 +312,19 @@ class SpeechRequest(BaseModel):
         default=True,
         description="VoiceStudio extension: prepend denoise control when supported.",
     )
+    humanize: bool = Field(
+        default=False,
+        description="VoiceStudio extension: Sound more human, as on /generate. A quiet "
+        "room tone under every pause (the voice profile's own room when it was cloned "
+        "from a recording) and the speaker's breaths before speech that follows a long "
+        "enough pause.",
+    )
+    humanize_strength: float = Field(
+        default=0.6,
+        ge=0.0,
+        le=1.0,
+        description="VoiceStudio extension: how much Sound more human does (0-1).",
+    )
     preprocess_prompt: bool = Field(
         default=True,
         description="VoiceStudio extension: trim/preprocess reference prompt when supported.",
@@ -387,9 +400,17 @@ def _known_engine_ids() -> str:
 
 def _resolve_engine(model_id: str):
     """Map an OpenAI model name to a VoiceStudio backend."""
+    from services.license_guard import CommercialUseBlocked, check_engine
     from services.tts_backend import (
-        get_backend_class, get_active_tts_backend, get_engine_instance_for,
+        active_backend_id, get_backend_class, get_active_tts_backend, get_engine_instance_for,
     )
+
+    # Commercial-safe mode (opt-in): the engine that would run is the named one, or the active one for an
+    # OpenAI model id. Refused in OpenAI's error shape so OpenAI SDK clients surface the reason.
+    try:
+        check_engine(active_backend_id() if is_openai_tts_model(model_id) else model_id)
+    except CommercialUseBlocked as exc:
+        raise OpenAIError(403, str(exc), param="model", code="commercial_use_blocked") from None
 
     # Direct engine ID match first, so a real engine id always means that
     # engine; then OpenAI model ids as pass-through to the active engine.
@@ -581,12 +602,36 @@ def _typed_speech_http_error(e: Exception) -> Optional[HTTPException]:
     return None
 
 
-def _run_tts(backend, text: str, kw: dict):
-    """Run TTS inference in the GPU thread pool."""
+def _run_tts(backend, text: str, kw: dict, humanize=None):
+    """Run TTS inference in the GPU thread pool.
+
+    Inline ``[pause Nms]`` markers become real stitched silence, as on
+    /generate: the text is split at the markers and each span rendered on
+    its own (an overall ``duration`` cannot be split, so spans drop it).
+    ``humanize`` (a ``services.humanize.HumanizeSettings``) runs the Sound
+    more human pass before mastering, exactly as /generate does, with the
+    voice profile's reference lending its room and breaths.
+    """
+    from omnivoice.utils.text import parse_pause_markers
     from services.audio_dsp import apply_mastering, normalize_audio
     from services.watermark import mark_synthetic
-    wav = backend.generate(text, **kw)
+
     sr = backend.sample_rate
+    segments = parse_pause_markers(text)
+    if len(segments) > 1 or (segments and segments[0][1] > 0):
+        from api.routers.generation import _humanize_span_preparer, _render_with_pauses
+
+        span_kw = {k: v for k, v in kw.items() if k != "duration"}
+        wav = _render_with_pauses(
+            lambda span: backend.generate(span, **span_kw), segments, sr,
+            prepare=_humanize_span_preparer(humanize, sr, kw.get("seed")),
+        )
+    else:
+        wav = backend.generate(text, **kw)
+    if humanize is not None:
+        from services.humanize import humanize_audio, make_rng, room_from_reference
+        wav = humanize_audio(wav, sr, humanize, make_rng(kw.get("seed"), salt=1),
+                             room=room_from_reference(kw.get("ref_audio"), sr))
     # Engines that already emit mastered, studio-grade audio (e.g. VoxCPM2's
     # native 48 kHz) opt out of apply_mastering via `applies_own_mastering`.
     # That chain's highpass + Compressor is tuned for VoiceStudio's 24 kHz clone
@@ -728,6 +773,23 @@ async def create_speech(req: SpeechRequest):
     from services.text_normalization import normalize_for_tts
     text = normalize_for_tts(req.input, req.language)
 
+    # ElevenLabs-style cues ([laughs], [whispers], [short pause]) lowered to
+    # what this engine can perform, the rest removed and named in a header —
+    # the same pass /generate makes, so a tag is never read aloud here either.
+    from services.audio_tags import lower_audio_tags, with_whisper
+    _vocabulary = getattr(type(backend), "instruct_vocabulary", "freeform")
+    _lowered = lower_audio_tags(
+        text, backend.id, _vocabulary,
+        takes_instruct=_vocabulary == "tags"
+        or str(backend.id).startswith(("cosyvoice", "voxcpm")),
+    )
+    text = _lowered.text
+    if _lowered.whisper:
+        kw["instruct"] = with_whisper(kw.get("instruct"), _vocabulary)
+
+    from services.humanize import HumanizeSettings
+    _humanize = HumanizeSettings.from_request(req.humanize, req.humanize_strength)
+
     # VRAM eviction runs in get_model()'s warm-return path now, covering every
     # native TTS generate (this route, WS TTS, dub, batch, audiobook).
 
@@ -820,7 +882,7 @@ async def create_speech(req: SpeechRequest):
         # so long inputs failed here even after v0.3.22 shipped the scaling.
         from services.model_manager import generate_timeout_s
         wav, sr = await run_on_gpu_pool_guarded(
-            lambda: _run_tts(backend, text, kw), what="OpenAI TTS generate",
+            lambda: _run_tts(backend, text, kw, _humanize), what="OpenAI TTS generate",
             timeout=generate_timeout_s(text, engine=backend))
     except Exception as e:
         # #1172/#1173: typed failures get their real status + actionable
@@ -844,6 +906,9 @@ async def create_speech(req: SpeechRequest):
         _hr = header_safe_reason(_routing_notice[1])
         if _hr:
             _headers["X-OmniVoice-Routing-Reason"] = _hr
+    if _lowered.dropped:
+        # Cue literals are ASCII letters, spaces, hyphens and brackets: header-safe.
+        _headers["X-OmniVoice-Expression-Dropped"] = ", ".join(_lowered.dropped)
     if req.stream_format == "sse":
         _headers.pop("Content-Disposition")
         return StreamingResponse(_sse_events(audio_bytes), media_type="text/event-stream",

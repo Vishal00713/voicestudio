@@ -124,6 +124,40 @@ def parse_direction(req: DirectionReq):
     }
 
 
+# ── Script conversion (Roman Hindi → Devanagari, …) ───────────────────────
+
+
+class TransliterateReq(BaseModel):
+    text: str
+    language: str
+
+
+_TRANSLITERATION_STATUS = {
+    "unsupported_language": 422,
+    "too_long": 413,
+    "llm_unavailable": 503,
+    "llm_failed": 502,
+    "bad_output": 502,
+}
+
+
+@router.post("/tools/transliterate")
+def transliterate_script(req: TransliterateReq):
+    """Rewrite romanized text in the language's own script with the
+    ``transliteration`` LLM skill. Never returns a rewrite that lost a
+    [tag], a line break or the target script (see services/transliteration)."""
+    from services.transliteration import TransliterationError, transliterate
+
+    try:
+        res = transliterate(req.text, req.language)
+    except TransliterationError as exc:
+        raise HTTPException(
+            status_code=_TRANSLITERATION_STATUS.get(exc.code, 502),
+            detail={"code": exc.code, "message": str(exc)},
+        ) from exc
+    return {"text": res.text, "changed": res.changed}
+
+
 # ── Speech-rate fit ────────────────────────────────────────────────────────
 
 

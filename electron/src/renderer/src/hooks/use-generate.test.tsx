@@ -258,6 +258,54 @@ it('attributes generation to an explicitly selected designed voice', async () =>
   );
 });
 
+it('renders design variations from distinct fresh seeds and keeps each one', async () => {
+  const { designVariationsStore, designVariationKey } =
+    await import('@/lib/store/design-variations');
+  vi.mocked(toast.success).mockClear();
+  let call = 0;
+  vi.mocked(generateClone)
+    .mockReset()
+    .mockImplementation(async (input) => ({
+      blob: new Blob(),
+      id: 'take-' + ++call,
+      audioPath: `take-${call}.wav`,
+      durationSeconds: 1,
+      genTimeSeconds: 1,
+      seed: input.seed ?? null,
+      routing: null,
+      dropped: null,
+    }));
+  function VariationsConsumer() {
+    const state = useGenerateClone();
+    return (
+      <button
+        onClick={() =>
+          void state.generateDesign({ text: 'Hi', instruct: 'female', seed: 5, variations: 3 })
+        }
+      >
+        variations {state.isGenerating ? 'running' : 'idle'}
+      </button>
+    );
+  }
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <GenerationProvider>
+        <VariationsConsumer />
+      </GenerationProvider>
+    </QueryClientProvider>,
+  );
+  fireEvent.click(screen.getByText('variations idle'));
+  await waitFor(() => expect(designVariationsStore.state.items).toHaveLength(3));
+  await screen.findByText('variations idle');
+  const seeds = vi.mocked(generateClone).mock.calls.map(([input]) => input.seed);
+  expect(new Set(seeds).size).toBe(3);
+  expect(designVariationsStore.state.items.map((variation) => variation.seed)).toEqual(seeds);
+  // The candidates belong to the description they came from (see the design page).
+  expect(designVariationsStore.state.key).toBe(designVariationKey('female', undefined));
+  expect(designVariationsStore.state.items[0]?.result.id).toBe('take-1');
+  expect(toast.success).toHaveBeenCalledTimes(1);
+});
+
 it.each([
   ['freeform', 'raspy old female, scottish accent', 'freeform'],
   [undefined, '', 'tags'],
@@ -311,7 +359,9 @@ it.each([
     function DesignConsumer() {
       const state = useGenerateClone();
       return (
-        <button onClick={() => void state.generateDesign({ text: 'Hi', instruct: 'male', seed: 1 })}>
+        <button
+          onClick={() => void state.generateDesign({ text: 'Hi', instruct: 'male', seed: 1 })}
+        >
           blocker {state.designBlocker ?? 'none'} {String(state.canGenerateDesign)}
         </button>
       );
@@ -335,14 +385,49 @@ it.each([
 );
 
 it.each([
-  ['a saved design voice with a sample', { ref_audio_path: 'design.wav' }, false, true, 'none', true],
-  ['a locked design voice', { is_locked: 1, locked_audio_path: 'locked.wav' }, false, true, 'none', true],
+  [
+    'a saved design voice with a sample',
+    { ref_audio_path: 'design.wav' },
+    false,
+    true,
+    'none',
+    true,
+  ],
+  [
+    'a locked design voice',
+    { is_locked: 1, locked_audio_path: 'locked.wav' },
+    false,
+    true,
+    'none',
+    true,
+  ],
   ['a saved design voice without a sample', {}, false, true, 'design', false],
   // KittenTTS / Supertonic-3 ignore reference audio: the saved voice would
   // silently become a preset one, so the re-render stays blocked.
-  ['a saved sample on a preset-only engine', { ref_audio_path: 'design.wav' }, false, false, 'cloning', false],
-  ['a saved sample on an undeclared preset-only engine', { ref_audio_path: 'design.wav' }, null, false, 'cloning', false],
-  ['a locked take on a preset-only engine', { is_locked: 1, locked_audio_path: 'locked.wav' }, false, false, 'cloning', false],
+  [
+    'a saved sample on a preset-only engine',
+    { ref_audio_path: 'design.wav' },
+    false,
+    false,
+    'cloning',
+    false,
+  ],
+  [
+    'a saved sample on an undeclared preset-only engine',
+    { ref_audio_path: 'design.wav' },
+    null,
+    false,
+    'cloning',
+    false,
+  ],
+  [
+    'a locked take on a preset-only engine',
+    { is_locked: 1, locked_audio_path: 'locked.wav' },
+    false,
+    false,
+    'cloning',
+    false,
+  ],
   ['a sampleless design on a preset-only engine', {}, false, false, 'design', false],
 ] as const)(
   're-renders %s only when the engine can clone its sample',

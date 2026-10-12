@@ -212,3 +212,22 @@ def test_get_archetype_roundtrip():
 
 def test_get_archetype_missing_returns_none():
     assert archetypes.get_archetype("does-not-exist-xyz") is None
+
+
+def test_reel_style_voices_are_featured_with_their_own_scripts():
+    """The Hindi documentary / comedy narrators and the wildlife narrator exist,
+    keep the neutral-timbre contract, and the Hindi ones carry genre scripts
+    rather than the shared greeting."""
+    by_id = {a["id"]: a for a in archetypes.list_archetypes(featured=True)}
+    doc = by_id["ml_hindi_documentary"]
+    com = by_id["ml_hindi_comedy"]
+    assert doc["instruct"] == "male, middle-aged, very low pitch"
+    assert com["instruct"] == "female, young adult, high pitch"
+    assert doc["language"] == com["language"] == "Hindi"
+    greeting = by_id["ml_hindi_narrator"]["sample_script"]
+    assert doc["sample_script"] not in (greeting, com["sample_script"])
+    assert com["sample_script"] != greeting
+    assert "[" not in doc["sample_script"] + com["sample_script"]
+    wild = by_id["feat_24_the_wildlife_narrator"]
+    assert wild["instruct"] == "male, middle-aged, very low pitch, british accent"
+    assert wild["use_case"] == "narration"

@@ -18,6 +18,9 @@ export const POPULAR_LANGUAGES: string[] = [
   'Hindi',
 ];
 
+/** ElevenLabs-style cues the backend lowers for every engine (services/audio_tags.py). */
+export const PERFORMANCE_TAGS: string[] = ['[whispers]', '[short pause]', '[long pause]'];
+
 /** Expression tokens the engine renders as non-verbal sounds when inlined in the script. */
 export const TAGS: string[] = [
   '[laughter]',

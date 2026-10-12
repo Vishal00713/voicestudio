@@ -55,6 +55,8 @@ describe('take metadata', () => {
       steps: 32,
       wavBits: 24,
       effectPreset: 'raw',
+      humanize: true,
+      humanizeStrength: 0.8,
       cfg: 3,
       speed: 0.8,
       tShift: 0.3,

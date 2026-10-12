@@ -8,6 +8,9 @@ and supported choices, rather than producing speech in the wrong language.
 Language names and regional codes are accepted; Auto keeps the engine's default.
 The same validation applies to direct synthesis, dubbing, and batch generation.
 
+Hindi has its own guide — script, numbers, times, rupees and the best clone
+settings: [hindi.md](hindi.md).
+
 The table below lists each language with its VoiceStudio language ID,
 ISO 639-3 code, and training data duration (hours).
 

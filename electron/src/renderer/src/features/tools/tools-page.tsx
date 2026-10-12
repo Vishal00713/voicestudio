@@ -1,8 +1,15 @@
-import { AudioWaveformIcon, GitCompareArrowsIcon, WrenchIcon } from 'lucide-react';
+import {
+  AudioWaveformIcon,
+  GitCompareArrowsIcon,
+  MusicIcon,
+  Volume2Icon,
+  WrenchIcon,
+} from 'lucide-react';
 import { SecondarySidebar } from '@/components/workspace-sidebar';
 import { ConvertVoice } from './convert-voice';
 import { WorkspaceHeader } from '@/components/app-shell/workspace-header';
 import { CompareVoices } from './compare-voices';
+import { MusicGenerator, SoundEffects } from './audio-generator';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
@@ -42,6 +49,8 @@ export function ToolsPage() {
   const { t } = useTranslation();
   const [comparing, setComparing] = useState(false);
   const [converting, setConverting] = useState(false);
+  const [generator, setGenerator] = useState<'sfx' | 'music' | null>(null);
+  const effects = generator !== null;
   const [selected, setSelected] = useState<Tool>(tools[0]);
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -59,9 +68,14 @@ export function ToolsPage() {
             <Button
               key={tool.id}
               className="h-9 w-full justify-start gap-2.5 rounded-lg px-2.5 font-normal [&_svg]:text-muted-foreground"
-              variant={!converting && !comparing && selected.id === tool.id ? 'secondary' : 'ghost'}
-              aria-pressed={!converting && !comparing && selected.id === tool.id}
+              variant={
+                !effects && !converting && !comparing && selected.id === tool.id
+                  ? 'secondary'
+                  : 'ghost'
+              }
+              aria-pressed={!effects && !converting && !comparing && selected.id === tool.id}
               onClick={() => {
+                setGenerator(null);
                 setConverting(false);
                 setComparing(false);
                 setSelected(tool);
@@ -73,9 +87,10 @@ export function ToolsPage() {
           ))}
           <Button
             className="h-9 w-full justify-start gap-2.5 rounded-lg px-2.5 font-normal [&_svg]:text-muted-foreground"
-            variant={!converting && comparing ? 'secondary' : 'ghost'}
-            aria-pressed={!converting && comparing}
+            variant={!effects && !converting && comparing ? 'secondary' : 'ghost'}
+            aria-pressed={!effects && !converting && comparing}
             onClick={() => {
+              setGenerator(null);
               setConverting(false);
               setComparing(true);
             }}
@@ -85,16 +100,41 @@ export function ToolsPage() {
           </Button>
           <Button
             className="h-9 w-full justify-start gap-2.5 rounded-lg px-2.5 font-normal [&_svg]:text-muted-foreground"
-            variant={converting ? 'secondary' : 'ghost'}
-            aria-pressed={converting}
-            onClick={() => setConverting(true)}
+            variant={!effects && converting ? 'secondary' : 'ghost'}
+            aria-pressed={!effects && converting}
+            onClick={() => {
+              setGenerator(null);
+              setConverting(true);
+            }}
           >
             <AudioWaveformIcon />
             {t('convert.convert')}
           </Button>
+          <Button
+            className="h-9 w-full justify-start gap-2.5 rounded-lg px-2.5 font-normal [&_svg]:text-muted-foreground"
+            variant={generator === 'sfx' ? 'secondary' : 'ghost'}
+            aria-pressed={generator === 'sfx'}
+            onClick={() => setGenerator('sfx')}
+          >
+            <Volume2Icon />
+            {t('soundEffects.title')}
+          </Button>
+          <Button
+            className="h-9 w-full justify-start gap-2.5 rounded-lg px-2.5 font-normal [&_svg]:text-muted-foreground"
+            variant={generator === 'music' ? 'secondary' : 'ghost'}
+            aria-pressed={generator === 'music'}
+            onClick={() => setGenerator('music')}
+          >
+            <MusicIcon />
+            {t('music.title')}
+          </Button>
         </SecondarySidebar>
         <section className="min-w-0 flex-1 overflow-y-auto px-6 py-8">
-          {converting ? (
+          {generator === 'music' ? (
+            <MusicGenerator />
+          ) : generator === 'sfx' ? (
+            <SoundEffects />
+          ) : converting ? (
             <ConvertVoice />
           ) : comparing ? (
             <CompareVoices />

@@ -24,6 +24,13 @@ describe('parsePersistedCloneSettings', () => {
       wavBits: 32,
       effectPreset: 'raw',
     });
+    expect(
+      parsePersistedCloneSettings('{"humanize":true,"humanizeStrength":1.7}'),
+    ).toMatchObject({ humanize: true, humanizeStrength: 0.6 });
+    expect(parsePersistedCloneSettings('{"humanizeStrength":0.25}')).toMatchObject({
+      humanize: false,
+      humanizeStrength: 0.25,
+    });
     expect(parsePersistedCloneSettings('{"wavBits":64,"effectPreset":"unknown"}')).toMatchObject({
       wavBits: 16,
       effectPreset: 'broadcast',

@@ -52,7 +52,10 @@ export function OutputPanel() {
           <>
             <WaveformPlayer key={objectUrl} src={objectUrl} source="output" height={36} />
             <AudioFileDetails blob={result.blob} />
-            {result.audioPath && <AudioQuality key={objectUrl} audioPath={result.audioPath} />}
+            {/* Siblings of the waveform: a shared key would make React keep stale players. */}
+            {result.audioPath && (
+              <AudioQuality key={'quality:' + objectUrl} audioPath={result.audioPath} />
+            )}
             <div className="flex flex-wrap items-start justify-between gap-3">
               <p
                 className="line-clamp-2 min-w-40 flex-1 text-sm text-muted-foreground"

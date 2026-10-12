@@ -101,14 +101,26 @@ class VoxCPM2SubprocessBackend(SubprocessBackend):
     def generate(self, text: str, **kw) -> "torch.Tensor":
         # The same preparation and finishing as VoxCPM2Backend.generate: the
         # reference clip is trimmed and capped here (the model no longer does
-        # it), and the output's long silent tail is cut.
+        # it), and the output's long silent tail is cut. A take that keeps
+        # talking past its text is rendered again with another seed
+        # (services/runaway_guard.py).
         self._check_language(kw.get("language"))
         from services.audio_dsp import trim_trailing_silence
+        from services.runaway_guard import render_guarded, retry_seed
         from services.tts_backend import prepare_voxcpm_reference
 
         prepare_voxcpm_reference(kw)
-        wav = super().generate(text, **kw)
-        return trim_trailing_silence(wav, self.sample_rate)
+        base = super(VoxCPM2SubprocessBackend, self)
+
+        def render(attempt: int) -> "torch.Tensor":
+            call = dict(kw)
+            if attempt:
+                call["seed"] = retry_seed(kw.get("seed"), attempt)
+            return trim_trailing_silence(base.generate(text, **call), self.sample_rate)
+
+        return render_guarded(render, text, sample_rate=self.sample_rate,
+                              language=kw.get("language"), speed=kw.get("speed"),
+                              label="VoxCPM2")
 
 
 __all__ = ["VENV_ENV_VAR", "VoxCPM2SubprocessBackend", "own_venv_python"]

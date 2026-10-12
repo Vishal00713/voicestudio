@@ -5,6 +5,7 @@ import {
   AlignLeftIcon,
   ChevronDownIcon,
   ClipboardPasteIcon,
+  LanguagesIcon,
   PlusIcon,
   Undo2Icon,
   FileUpIcon,
@@ -15,7 +16,10 @@ import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { TAGS } from '@/lib/languages';
+import { ApiError } from '@/lib/api/client';
+import { transliterateScript } from '@/lib/api/transliterate';
+import { PERFORMANCE_TAGS, TAGS } from '@/lib/languages';
+import { shouldOfferNativeScript } from '@/lib/native-script';
 import { setCloneSetting, useCloneSetting } from '@/lib/store/clone-settings';
 import { cn } from '@/lib/utils';
 import { SectionLabel } from './section-label';
@@ -27,6 +31,8 @@ export function ScriptPanel({
 }: { voiceName?: string; coachmark?: string; onUserEdit?: () => void } = {}) {
   const { t } = useTranslation();
   const text = useCloneSetting('text');
+  const language = useCloneSetting('language');
+  const [converting, setConverting] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const importRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -108,6 +114,28 @@ export function ScriptPanel({
     }
   };
 
+  // Roman Hindi (and other romanized scripts) is read with English
+  // pronunciation; rewrite it in the language's own script, with Undo.
+  const convertScript = async () => {
+    const before = textareaRef.current?.value ?? text;
+    setConverting(true);
+    try {
+      const result = await transliterateScript(before, language);
+      if (result.changed && textareaRef.current?.value === before) {
+        edit(result.text, true);
+        toast.success(t('clone.native_script_done'));
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof ApiError && error.status === 503
+          ? t('clone.native_script_no_llm')
+          : t('clone.native_script_failed'),
+      );
+    } finally {
+      setConverting(false);
+    }
+  };
+
   const openInsert = (focusMenu = true) => {
     const field = textareaRef.current;
     if (!field) return;
@@ -147,6 +175,20 @@ export function ScriptPanel({
             {t('clone.text_label')}
           </SectionLabel>
           <div className="flex items-center gap-1">
+            {shouldOfferNativeScript(text, language) && (
+              <Button
+                variant="ghost"
+                size="xs"
+                className="font-normal text-muted-foreground hover:text-foreground"
+                disabled={converting || pasting}
+                title={t('clone.native_script_hint')}
+                onPointerDown={(event) => event.preventDefault()}
+                onClick={() => void convertScript()}
+              >
+                <LanguagesIcon data-icon="inline-start" />
+                {t('clone.native_script')}
+              </Button>
+            )}
             <input
               ref={importRef}
               type="file"
@@ -305,7 +347,7 @@ export function ScriptPanel({
                       aria-label={t('clone.insert_token')}
                       className="fixed z-50 flex max-h-56 w-[min(360px,calc(100vw-16px))] flex-wrap gap-1 overflow-y-auto rounded-lg bg-popover p-2 text-popover-foreground shadow-md ring-1 ring-foreground/10 animate-in fade-in-0 zoom-in-95 motion-reduce:animate-none"
                     >
-                      {TAGS.map((tag) => (
+                      {[...PERFORMANCE_TAGS, ...TAGS].map((tag) => (
                         <button
                           key={tag}
                           type="button"

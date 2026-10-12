@@ -1970,10 +1970,21 @@ class VoxCPM2Backend(TTSBackend):
         import numpy as np
 
         from engines.voxcpm2_subprocess.main import generation_kwargs
+        from services.runaway_guard import render_guarded, retry_seed
 
         prepare_voxcpm_reference(kw)
-        wav = self._model.generate(**generation_kwargs(text, **kw))
-        return self._finalize(wav)
+
+        def render(attempt: int) -> torch.Tensor:
+            # The caller seeded the first attempt; a retry draws its own seed
+            # so a take that ran on past its text is not repeated verbatim.
+            if attempt:
+                seed = retry_seed(kw.get("seed"), attempt)
+                torch.manual_seed(seed if seed is not None else torch.seed())
+            return self._finalize(self._model.generate(**generation_kwargs(text, **kw)))
+
+        return render_guarded(render, text, sample_rate=self.sample_rate,
+                              language=kw.get("language"), speed=kw.get("speed"),
+                              label="VoxCPM2")
 
     def _finalize(self, wav) -> torch.Tensor:
         """Normalize model output to a (1, n) float tensor and apply the
@@ -4390,6 +4401,10 @@ async def resolve_generation_backend(
         MLX-Audio (Kokoro vs. CSM) is judged by what's actually loaded.
     """
     engine_id = active_backend_id()
+    from services.license_guard import check_engine
+
+    # Commercial-safe mode (opt-in): one gate for batch, dubbing, previews and voice conversion.
+    check_engine(engine_id)
     try:
         backend_cls = get_backend_class(engine_id)
     except ValueError as e:

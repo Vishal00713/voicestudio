@@ -8,8 +8,10 @@ taxonomy. Each archetype carries an ``instruct`` string (e.g.
 
 Two tiers (the "hybrid" gallery model):
 
-* **Featured** — ~51 hand-curated archetypes (24 English across the seven
-  use-case categories + 27 multilingual designed voices in nine more languages).
+* **Featured** — ~54 hand-curated archetypes (25 English across the seven
+  use-case categories + 29 multilingual designed voices in nine more languages,
+  including per-language roles such as the Hindi documentary and comedy
+  narrators modelled on the short-video reels users want to reproduce).
   Pre-rendered preview WAVs are produced by ``scripts/render_demos_omnivoice.py``;
   until a WAV exists the API renders one on demand.
 * **Generated** — the full combinatorial space of gender × age × pitch ×
@@ -293,6 +295,11 @@ _FEATURED_SPEC = [
     # Informative & Educational
     ("female", "middle-aged", "moderate pitch", "american accent", False, "informative", "The Teacher", "GraduationCap"),
     ("male", "young adult", "moderate pitch", "british accent", False, "informative", "The Explainer", "Lightbulb"),
+    # Appended, never inserted: the featured id carries the index
+    # (``feat_NN_slug``), so an insertion would rename every voice after it.
+    # Nature-documentary reel narrator: measured ~92 Hz median F0 with a
+    # 13-semitone range on a viral wildlife reel, i.e. very low and dramatic.
+    ("male", "middle-aged", "very low pitch", "british accent", False, "narration", "The Wildlife Narrator", "Leaf"),
 ]
 
 
@@ -349,6 +356,24 @@ _ML_ROLES = [
     ("female", "young adult", "moderate pitch", "conversational", "Companion", "MessagesSquare"),
 ]
 
+# Roles one language gets on top of the shared three, each with its own
+# preview script so the demo sounds like the genre and not a greeting.
+# (gender, age, pitch, use_case, role, icon, script). Hindi: the two reel
+# genres users ask for — a nature-documentary narrator (deep, dramatic; the
+# measured reel sat around 92 Hz) and the "ulti duniya" comedy narrator
+# (bright female voice, ~220 Hz, quick with gaps for the punchlines).
+_ML_LANGUAGE_ROLES = {
+    "Hindi": [
+        ("male", "middle-aged", "very low pitch", "narration", "Documentary", "Film",
+         "हिमालय की बर्फ़ीली चोटियों के बीच, जहाँ हवा पतली और रातें लंबी होती हैं, "
+         "हर साल एक छोटा सा जीव अपनी ज़िंदगी का सबसे ख़तरनाक सफ़र शुरू करता है। "
+         "और इस बार, उसके पास सिर्फ़ एक मौका है।"),
+        ("female", "young adult", "high pitch", "social", "Comedy", "Laugh",
+         "उल्टी दुनिया में सब कुछ उल्टा है। यहाँ बीवी कहती है, जाओ, दोस्तों के साथ घूम आओ! "
+         "और पति पूछता है, सिर्फ़ दो घंटे? पूरा दिन क्यों नहीं? अब बताओ, ऐसी दुनिया चाहिए या नहीं?"),
+    ],
+}
+
 
 def _make_multilingual():
     """Build the featured archetypes for the non-EN/ZH languages.
@@ -365,6 +390,13 @@ def _make_multilingual():
                 gender, age, pitch,
                 use_case=uc, name=f"{language} {role}", icon=icon,
                 language=language, script=script,
+                featured=True, fid=f"ml_{lang_slug}_{role.lower()}",
+            ))
+        for gender, age, pitch, uc, role, icon, role_script in _ML_LANGUAGE_ROLES.get(language, ()):
+            out.append(_build(
+                gender, age, pitch,
+                use_case=uc, name=f"{language} {role}", icon=icon,
+                language=language, script=role_script,
                 featured=True, fid=f"ml_{lang_slug}_{role.lower()}",
             ))
     return out

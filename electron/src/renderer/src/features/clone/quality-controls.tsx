@@ -35,6 +35,8 @@ export function QualityControls({
   const stepRange = samplingStepRange(activeTts?.id);
   const steps = effectiveSamplingSteps(settings.steps, activeTts?.id);
   const mastering = settings.effectPreset === 'broadcast';
+  const humanize = settings.humanize;
+  const humanizePercent = Math.round(settings.humanizeStrength * 100);
 
   const choose = (index: number) => {
     const next = (index + precisions.length) % precisions.length;
@@ -68,7 +70,7 @@ export function QualityControls({
       >
         <AudioWaveformIcon aria-hidden="true" />
         <span className="max-w-28 truncate">{t(`cloneQuality.preset${bits}`)}</span>
-        {mastering && (
+        {(mastering || humanize) && (
           <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-primary" />
         )}
         <ChevronDownIcon aria-hidden="true" className="size-3 opacity-70" />
@@ -191,6 +193,52 @@ export function QualityControls({
                 setCloneSetting('effectPreset', checked ? 'broadcast' : 'raw')
               }
             />
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-start justify-between gap-3 text-xs">
+              <span>
+                <span className="font-medium">{t('cloneQuality.humanize')}</span>
+                <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                  {t('cloneQuality.humanizeHint')}
+                </span>
+              </span>
+              <Switch
+                aria-label={t('cloneQuality.humanize')}
+                checked={humanize}
+                disabled={disabled}
+                onCheckedChange={(checked) => setCloneSetting('humanize', checked)}
+              />
+            </div>
+            {humanize && (
+              <div className="space-y-1.5">
+                <div className="flex justify-between gap-2 text-xs">
+                  <span id={`${id}-humanize`} className="font-medium">
+                    {t('cloneQuality.humanizeStrength')}
+                  </span>
+                  <output className="text-primary tabular-nums">{humanizePercent}%</output>
+                </div>
+                <Slider
+                  thumbProps={{
+                    'aria-labelledby': `${id}-humanize`,
+                    'aria-describedby': `${id}-humanize-hint`,
+                  }}
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={[humanizePercent]}
+                  disabled={disabled}
+                  onValueChange={(value) =>
+                    setCloneSetting(
+                      'humanizeStrength',
+                      (Array.isArray(value) ? value[0] : value) / 100,
+                    )
+                  }
+                />
+                <p id={`${id}-humanize-hint`} className="text-[11px] text-muted-foreground">
+                  {t('cloneQuality.humanizeStrengthHint')}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </PopoverContent>

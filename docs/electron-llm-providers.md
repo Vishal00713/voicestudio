@@ -114,6 +114,11 @@ the form never freezes a discovered model. Existing `local-model` placeholder
 settings recover automatic discovery; a real explicit model still takes precedence.
 Discovery runs only on an explicit probe or feature request.
 
+The **Script conversion** skill powers the Script box's **Convert to native
+script** button: romanized text in a language with its own script (Hinglish
+such as `kya haal hai`) is rewritten in that script before synthesis, with
+bracket tags and line breaks checked on the way back ([hindi.md](hindi.md)).
+
 LLM skills following the active provider respect the selected Off engine. Explicit
 per-skill provider overrides remain usable independently, but the environment's
 global Off switch disables all skills. Changing skill routing refreshes translation

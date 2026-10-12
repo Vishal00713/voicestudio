@@ -89,6 +89,32 @@ _CHANGE_CASES = [
     ("Malayalam", "3.5 കിലോമീറ്റർ", "മൂന്ന് ദശാംശം അഞ്ച് കിലോമീറ്റർ"),
     ("ml", "എനിക്ക് 2 പൂച്ചകൾ ഉണ്ട്", "എനിക്ക് രണ്ട് പൂച്ചകൾ ഉണ്ട്"),
     ("ml-IN", "25000 രൂപ", "ഇരുപത്തയ്യായിരം രൂപ"),
+    # Hindi has its own native verbalizer: the irregular 1-99 table, the
+    # spoken सौ form for 1100-1999, लाख grouping, rupees (₹ / Rs. / Indian
+    # digit grouping), clock times, digit ordinals, percent, decimal, tilde
+    # ranges, Devanagari digits and title abbreviations.
+    ("Hindi", "मेरे पास 2 बिल्लियाँ हैं", "मेरे पास दो बिल्लियाँ हैं"),
+    ("Hindi", "वहाँ 42 लोग आए", "वहाँ बयालीस लोग आए"),
+    ("Hindi", "कीमत 150 रुपये", "कीमत एक सौ पचास रुपये"),
+    ("Hindi", "2026 में", "दो हज़ार छब्बीस में"),
+    ("Hindi", "1984 की कहानी", "उन्नीस सौ चौरासी की कहानी"),
+    ("Hindi", "150000 रुपये", "एक लाख पचास हज़ार रुपये"),
+    ("Hindi", "₹1,50,000 का इनाम", "एक लाख पचास हज़ार रुपये का इनाम"),
+    ("Hindi", "Rs. 500 दीजिए", "पाँच सौ रुपये दीजिए"),
+    ("Hindi", "₹5.50 में", "पाँच रुपये पचास पैसे में"),
+    ("Hindi", "सुबह 10:30 बजे मिलेंगे", "सुबह साढ़े दस बजे मिलेंगे"),
+    ("Hindi", "ट्रेन 10:20 बजे आई", "ट्रेन दस बजकर बीस मिनट पर आई"),
+    ("Hindi", "शाम 7:00 बजे", "शाम सात बजे"),
+    ("Hindi", "5वीं कक्षा", "पाँचवीं कक्षा"),
+    ("Hindi", "1वां दिन", "पहला दिन"),
+    ("Hindi", "लगभग 50%", "लगभग पचास प्रतिशत"),
+    ("Hindi", "3.5 किलोमीटर", "साढ़े तीन किलोमीटर"),
+    ("Hindi", "3.7 किलोमीटर", "तीन दशमलव सात किलोमीटर"),
+    ("Hindi", "20~30 सेकंड", "बीस से तीस सेकंड"),
+    ("Hindi", "डॉ. शर्मा आए", "डॉक्टर शर्मा आए"),
+    ("hi", "२०२६ में", "दो हज़ार छब्बीस में"),
+    ("hi-IN", "25000 रुपये", "पच्चीस हज़ार रुपये"),
+    ("Hindi", "[pause 300ms] 42 [voice:Anu]", "[pause 300ms] बयालीस [voice:Anu]"),
     # Digits inside bracket grammar are masked; the rest still verbalizes.
     ("Malayalam", "[pause 300ms] 42 [voice:Anu]", "[pause 300ms] നാൽപത്തിരണ്ട് [voice:Anu]"),
     # Native Malayalam digits are digits too.
@@ -186,6 +212,15 @@ _UNCHANGED_CASES = [
     ("Malayalam", "ക്ലാസ്10 ജയിച്ചു"),
     ("Malayalam", "കോടി150"),
     ("Malayalam", "കോഡ് ൦൦൭"),                    # native leading-zero code
+    # Hindi native path keeps the same conservative boundaries
+    ("Hindi", "1,000 रुपये"),                    # plain thousands grouping
+    ("Hindi", "पेज 3-5 पढ़ें"),                   # range
+    ("Hindi", "कोड 007"),                        # leading-zero code
+    ("Hindi", "कोड ००७"),                        # native leading-zero code
+    ("Hindi", "1234567 नंबर"),                   # 7+ digits: an ID
+    ("Hindi", "कक्षा10 में"),                      # glued to a word
+    ("Hindi", "[pause 300ms] आवाज़ [rate 0.9]"),  # bracket grammar untouched
+    ("Hindi", "12:34:56 पर"),                    # a duration, not a clock time
     ("ar", "الرمز ٠٠٧"),                         # same class on the num2words path
     # Digit ranges: only the tilde family is a range mark. Everything else that
     # sits between digits means something other than "to".
@@ -277,6 +312,9 @@ def test_native_language_is_outside_num2words_gate():
     assert _num2words_lang("ml") is None
     assert _native_lang("Malayalam") == "ml"
     assert _native_lang("ml-IN") == "ml"
+    assert _num2words_lang("Hindi") is None
+    assert _native_lang("Hindi") == "hi"
+    assert _native_lang("hi-IN") == "hi"
     assert _native_lang("English") is None
 
 

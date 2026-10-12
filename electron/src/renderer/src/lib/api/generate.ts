@@ -139,6 +139,10 @@ export function toGenerateForm(input: CloneGenerateInput): FormData {
   form.append('num_step', String(input.steps));
   form.append('wav_bits', String(input.wavBits ?? 16));
   form.append('effect_preset', input.effectPreset ?? 'broadcast');
+  if (input.humanize) {
+    form.append('humanize', 'true');
+    form.append('humanize_strength', String(input.humanizeStrength ?? 0.6));
+  }
   form.append('guidance_scale', String(input.cfg));
   form.append('speed', String(input.speed));
   form.append('denoise', String(input.denoise));
@@ -201,6 +205,11 @@ export function parseGenerateHeaders(headers: Headers): Omit<GenerateResult, 'bl
       droppedCount !== null && droppedCount > 0
         ? { count: droppedCount, text: headers.get('X-OmniVoice-Dropped-Text') ?? '' }
         : null,
+    expressionDropped: (headers.get('X-OmniVoice-Expression-Dropped') ?? '')
+      .split(',')
+      .map((tag) => tag.trim())
+      .filter(Boolean),
+    referenceScript: headers.get('X-OmniVoice-Reference-Script') || null,
   };
 }
 
@@ -377,6 +386,8 @@ export async function generateCloneStreaming(
       seed: completed.seed ?? headers.seed,
       routing: headers.routing,
       dropped,
+      expressionDropped: headers.expressionDropped,
+      referenceScript: headers.referenceScript,
     };
   } catch (error) {
     (player as ReturnType<typeof createStreamingPreview> | null)?.fail();

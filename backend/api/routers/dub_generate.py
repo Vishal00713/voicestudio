@@ -65,6 +65,9 @@ async def _resolve_dub_execution():
     """Resolve the local cloning-capable backend for a dub."""
     ensure_active_engine_licence()
     engine_id = active_backend_id()
+    from services.license_guard import check_engine
+
+    check_engine(engine_id)  # Commercial-safe mode (opt-in)
     return engine_id, await resolve_generation_backend(require_cloning=True)
 
 

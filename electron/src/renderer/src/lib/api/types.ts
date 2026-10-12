@@ -146,6 +146,10 @@ export interface DesignRecipe {
 export interface CloneGenerateInput {
   wavBits?: 16 | 24 | 32;
   effectPreset?: 'broadcast' | 'raw';
+  /** Breaths, room tone and natural pacing on the finished take. */
+  humanize?: boolean;
+  /** 0–1; only sent while `humanize` is on. */
+  humanizeStrength?: number;
   seed?: number;
   text: string;
   /** Display-name language ("English"). "Auto" is omitted on the wire. */
@@ -185,6 +189,11 @@ export interface GenerateResult {
   seed: number | null;
   routing: { status: string; reason: string } | null;
   dropped: { count: number; text: string } | null;
+  /** X-OmniVoice-Expression-Dropped: audio tags the engine could not perform. */
+  expressionDropped?: string[];
+  /** X-OmniVoice-Reference-Script: the voice sample is written in a script the
+   *  take's language never uses, so the take carries the sample's accent. */
+  referenceScript?: string | null;
 }
 
 // ── Errors ────────────────────────────────────────────────────────────────

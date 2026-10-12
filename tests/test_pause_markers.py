@@ -100,6 +100,17 @@ def test_render_pause_only_input_is_silence():
     assert torch.all(out == 0)
 
 
+def test_render_synthesizes_each_span_without_surrounding_spaces():
+    seen = []
+
+    def gen(text):
+        seen.append(text)
+        return torch.ones(1, 10)
+
+    _render_with_pauses(gen, parse_pause_markers("Hi [laughter] there. [pause 1s] Bye."), 1000)
+    assert seen == ["Hi [laughter] there.", "Bye."]
+
+
 def test_render_no_pause_single_span_passthrough():
     sr = 1000
     segs = [("just text", 0)]

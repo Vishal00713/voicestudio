@@ -1,4 +1,5 @@
-"""Single-active-TTS-engine memory discipline.
+"""Single-active-TTS-engine memory discipline (the music and sound-effect tool
+models in ``services.tool_models`` follow it too).
 
 Only one TTS engine's model stays resident at a time. When the generate path
 resolves an engine, every *other* resident engine is unloaded first — so the
@@ -79,6 +80,40 @@ async def evict_other_tts_engines(keep_id: str) -> list[str]:
         keep_cls = tts_backend.get_backend_class(keep_id)
     except ValueError:
         return []  # Reject invalid overrides before changing any resident model.
+    evicted = await _evict_tts(keep_cls, keep_id)
+    evicted.extend(_evict_tools())
+    if evicted:
+        logger.info("single-engine eviction: freed %s (keeping %s)", log_safe(evicted), log_safe(keep_id))
+    return evicted
+
+
+async def evict_for_tool(tool_id: str) -> list[str]:
+    """Free every resident TTS engine and the other tool before ``tool_id`` renders.
+
+    Music and sound effects take the GPU the speech engines use; a card that
+    fits one of them at a time must not hold both. Never raises."""
+    if not single_engine_resident():
+        return []
+    evicted = await _evict_tts(None, tool_id)
+    evicted.extend(_evict_tools(keep=tool_id))
+    if evicted:
+        logger.info("single-engine eviction: freed %s (keeping %s)", log_safe(evicted), log_safe(tool_id))
+    return evicted
+
+
+def _evict_tools(keep: str | None = None) -> list[str]:
+    try:
+        from services.tool_models import unload_all
+
+        return unload_all(keep=keep)
+    except Exception:  # noqa: BLE001
+        logger.warning("evict: tool model unload failed", exc_info=True)
+        return []
+
+
+async def _evict_tts(keep_cls, keep_id: str) -> list[str]:
+    from services import tts_backend
+
     evicted: list[str] = []
 
     # The VoiceStudio core singleton — only when the incoming engine isn't it.
@@ -105,7 +140,4 @@ async def evict_other_tts_engines(keep_id: str) -> list[str]:
             tts_backend.reset_active_backend()
             if active_id and active_id not in evicted:
                 evicted.append(active_id)
-
-    if evicted:
-        logger.info("single-engine eviction: freed %s (keeping %s)", log_safe(evicted), log_safe(keep_id))
     return evicted
