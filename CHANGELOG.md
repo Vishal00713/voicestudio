@@ -11,6 +11,7 @@ metadata and the backend fallback mirror it.
 **Highlights**
 
 - The open-source app no longer contains a licence-key client
+- Dub quality checks treat equivalent Unicode spellings as the same text — thanks @rudycelekli! (#2693)
 
 ### Removed
 
