@@ -33,8 +33,8 @@ def _tts_vram_mb() -> float:
             driver = getattr(torch.mps, "driver_allocated_memory", None)
             if driver:
                 return driver() / (1024 ** 2)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Failed to query in-process TTS VRAM: %s", e)
     return 0.0
 
 
@@ -75,7 +75,8 @@ def _active_tts_id() -> Optional[str]:
     try:
         from services.tts_backend import active_backend_id
         return active_backend_id()
-    except Exception:
+    except Exception as e:
+        logger.debug("Failed to resolve active TTS engine id: %s", e)
         return None
 
 
@@ -102,7 +103,8 @@ def list_loaded() -> dict:
     if mm.model is not None:
         try:
             device = str(next(mm.model.parameters()).device) if hasattr(mm.model, "parameters") else get_best_device()
-        except Exception:
+        except Exception as e:
+            logger.debug("Failed to determine TTS model device from parameters: %s", e)
             device = get_best_device()
         models.append({
             "id": "tts",
@@ -275,8 +277,8 @@ def list_loaded() -> dict:
         warn = low_memory_warning()
         if warn:
             system["warning"] = warn
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Failed to collect system memory budget: %s", e)
 
     return {"models": models, "count": len(models), "system": system,
             "degraded_sources": degraded_sources}
@@ -378,8 +380,8 @@ async def unload_all() -> dict:
             for entry in list_loaded()["models"]
             if entry["id"].startswith(("engine:", "active-engine:"))
         )
-    except Exception:
-        logger.warning("Could not enumerate optional engines during global unload")
+    except Exception as e:
+        logger.warning("Could not enumerate optional engines during global unload: %s", type(e).__name__)
     for mid in dict.fromkeys(model_ids):
         try:
             results[mid] = await unload(mid)
