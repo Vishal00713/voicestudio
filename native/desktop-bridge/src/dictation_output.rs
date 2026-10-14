@@ -227,7 +227,10 @@ impl DictationOutput {
             if state.pending.as_ref().map(|session| session.id) != Some(session_id) {
                 return Err(kind_err("paste", "stale dictation session candidate"));
             }
-            let candidate = state.pending.take().expect("candidate validated above");
+            let candidate = state
+                .pending
+                .take()
+                .ok_or_else(|| kind_err("paste", "candidate session missing"))?;
             let replaced = state.active.replace(candidate);
             replaced.and_then(|session| session.clipboard)
         };
@@ -463,7 +466,10 @@ impl DictationOutput {
                 staged_at: Instant::now(),
             });
         }
-        let lease = session.clipboard.as_mut().expect("clipboard lease created");
+        let lease = session
+            .clipboard
+            .as_mut()
+            .ok_or_else(|| kind_err("paste", "missing clipboard lease"))?;
         lease.generation = generation;
         lease.staged.clear();
         lease.staged.push_str(text);
@@ -485,7 +491,11 @@ impl DictationOutput {
         let mut clipboard = open_clipboard()?;
         set_clipboard_text(&mut clipboard, text)?;
         state.clipboard_generation = state.clipboard_generation.wrapping_add(1);
-        let session = state.active.as_mut().expect("session validated");
+        let session = state
+            .active
+            .as_mut()
+            .filter(|session| session.id == session_id)
+            .ok_or_else(|| kind_err("paste", "stale dictation session"))?;
         session.clipboard = None;
         session.clipboard_only = true;
         Ok(())
@@ -517,7 +527,11 @@ impl DictationOutput {
         // scheduled restore without reopening a clipboard that may be
         // transiently unavailable, then keep this session copy-only.
         state.clipboard_generation = state.clipboard_generation.wrapping_add(1);
-        let session = state.active.as_mut().expect("session validated above");
+        let session = state
+            .active
+            .as_mut()
+            .filter(|session| session.id == session_id)
+            .ok_or_else(|| kind_err("paste", "stale dictation session"))?;
         session.clipboard = None;
         session.clipboard_only = true;
         Ok(())
@@ -614,10 +628,11 @@ fn open_clipboard() -> Result<Clipboard, String> {
             thread::sleep(Duration::from_millis(25));
         }
     }
-    Err(kind_err(
-        "clipboard",
-        format!("init failed: {}", last_error.expect("at least one attempt")),
-    ))
+    let detail = last_error
+        .as_ref()
+        .map(|err| err.to_string())
+        .unwrap_or_else(|| "unknown error".to_string());
+    Err(kind_err("clipboard", format!("init failed: {}", detail)))
 }
 
 fn set_clipboard_text(clipboard: &mut Clipboard, text: &str) -> Result<(), String> {
@@ -632,13 +647,11 @@ fn set_clipboard_text(clipboard: &mut Clipboard, text: &str) -> Result<(), Strin
             thread::sleep(Duration::from_millis(25));
         }
     }
-    Err(kind_err(
-        "clipboard",
-        format!(
-            "write failed: {}",
-            last_error.expect("at least one attempt")
-        ),
-    ))
+    let detail = last_error
+        .as_ref()
+        .map(|err| err.to_string())
+        .unwrap_or_else(|| "unknown error".to_string());
+    Err(kind_err("clipboard", format!("write failed: {}", detail)))
 }
 
 fn snapshot_clipboard(clipboard: &mut Clipboard) -> ClipboardSnapshot {
