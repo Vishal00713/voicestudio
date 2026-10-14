@@ -382,6 +382,10 @@ hard rules from the first prompt.
     (`backend/core/analytics.py`, allowlisted content-free metadata).
   - The GitHub star count (no credentials or referrer, refreshed every 20
     minutes while shown).
+  - **Explicitly run standalone example:** the optional agentic spoken-research
+    example sends a user-approved query and selected URLs to Parallel Search
+    MCP (`https://search.parallel.ai/mcp`); fetched excerpts are sent to the
+    user-configured VoiceStudio speech endpoint only after a separate prompt.
 
   Adding to this list needs owner approval. Never log or persist secrets or
   absolute home paths.

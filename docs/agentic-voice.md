@@ -61,6 +61,31 @@ Contract tests pin this surface in CI: `tests/test_agentic_provider_contract.py`
 (the pipecat/LiveKit request shape) and `tests/test_openai_sdk_contract.py`
 (drives every route through the official `openai` SDK).
 
+## Optional Parallel web research
+
+[`examples/agentic/parallel_search_spoken_research.py`](../examples/agentic/parallel_search_spoken_research.py)
+is a standalone example that uses Parallel Search MCP for current web results,
+lets you choose which result URLs to fetch, then sends the fetched excerpts to
+VoiceStudio's local speech API and saves a WAV. It is not called by the app and
+adds no application dependency.
+
+Run VoiceStudio first, then install the optional MCP client in your own Python
+environment and run the example from the repository root:
+
+```sh
+uv pip install "mcp>=2,<3"
+python examples/agentic/parallel_search_spoken_research.py "recent open source speech synthesis"
+```
+
+The example asks before contacting `https://search.parallel.ai/mcp` and again
+before sending the fetched excerpts to the configured VoiceStudio speech
+endpoint. It uses Parallel's anonymous Search MCP endpoint by default, which
+does not require an API key. The query and selected URLs go to Parallel; the
+fetched excerpts go to VoiceStudio (loopback by default). Set
+`OMNIVOICE_API_URL`, `OMNIVOICE_API_KEY`, and `OMNIVOICE_VOICE` to target a
+different backend or voice. The WAV defaults to the OS user data directory under
+VoiceStudio/spoken-research.wav; pass --output to choose another destination.
+
 ## pipecat (recommended)
 
 [pipecat](https://github.com/pipecat-ai/pipecat) (BSD-2) runs as a Python

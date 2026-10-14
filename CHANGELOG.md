@@ -10,6 +10,7 @@ metadata and the backend fallback mirror it.
 
 **Highlights**
 
+- An optional agent example can search and fetch web sources with Parallel Search MCP, then send selected excerpts to local speech (#2742) — thanks @georgeatparallel!
 - The open-source app no longer contains a licence-key client
 
 ### Removed
