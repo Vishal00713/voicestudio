@@ -26,16 +26,16 @@ fn home_dir() -> Option<PathBuf> {
 }
 
 fn has_signature(path: &Path) -> bool {
-    [
-        "omnivoice.db",
-        "prefs.json",
-        "voices",
-        "outputs",
-        "engines",
-        "runtime",
-    ]
-    .iter()
-    .any(|name| path.join(name).exists())
+    // Definitive app database or configuration markers:
+    if path.join("omnivoice.db").exists() || path.join("prefs.json").exists() {
+        return true;
+    }
+    // Generic directory names (outputs, runtime, etc.) must not match individually,
+    // which could falsely identify arbitrary user or build trees as VoiceStudio data.
+    // Require at least three confirming directory markers together for unmarked trees.
+    let markers = ["voices", "outputs", "engines", "runtime"];
+    let match_count = markers.iter().filter(|name| path.join(name).is_dir()).count();
+    match_count >= 3
 }
 
 fn recognizably_owned(path: &Path, home: Option<&Path>) -> bool {
@@ -192,6 +192,22 @@ mod tests {
         run(u32::MAX, &plan).unwrap();
         assert!(!target.exists());
         assert!(!plan.exists());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn generic_directories_alone_do_not_satisfy_signature() {
+        let root = std::env::temp_dir().join(format!("desktop-cleanup-generic-{}", std::process::id()));
+        let generic = root.join("my-project");
+        fs::create_dir_all(generic.join("outputs")).unwrap();
+        fs::create_dir_all(generic.join("runtime")).unwrap();
+        // 2 generic directories: must NOT be recognized as VoiceStudio
+        assert!(!recognizably_owned(&generic, home_dir().as_deref()));
+
+        // Adding omnivoice.db makes it definitively recognized
+        fs::write(generic.join("omnivoice.db"), b"db").unwrap();
+        assert!(recognizably_owned(&generic, home_dir().as_deref()));
+
         fs::remove_dir_all(root).unwrap();
     }
 }
