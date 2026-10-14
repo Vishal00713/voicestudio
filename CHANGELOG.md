@@ -12,6 +12,10 @@ metadata and the backend fallback mirror it.
 
 - The open-source app no longer contains a licence-key client
 
+### Fixed
+
+- MLX-Audio preserves supported voice settings and reports model failures instead of silently retrying with a default voice (#2739) — thanks @BichengWang!
+
 ### Removed
 
 - The unused licence-key client and its Lemon Squeezy network call are gone from the open-source app (#2812)
