@@ -161,6 +161,7 @@ This release also adds a GPU acceleration panel with honest Radeon reporting, th
 - License notice: commercial use is free under the AGPL; the paid licence is for closed-source use, with Pro plans linked (#2578)
 
 ### Fixed
+- Changing pronunciation entry precedence refreshes cached longform audio (#2728) — thanks @rudycelekli!
 
 - A fresh install no longer logs settings errors before its database is created (#2776)
 - The model licence dialog says when licences are accepted and no longer assumes an action is waiting (#2776)
