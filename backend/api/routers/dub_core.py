@@ -17,6 +17,7 @@ from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
 
 from core.db import db_conn
 from core.config import PREVIEW_DIR
+from core.file_cleanup import sweep_stale_files
 from core.tasks import task_manager
 from core.logging_utils import log_safe
 from core.media_types import AUDIO_EXTS, MEDIA_EXTS, media_extension, media_upload_suffix, unsupported_media_detail
@@ -634,6 +635,10 @@ def delete_single_dub_history(history_id: str):
     event_bus.emit("dub_history", {"action": "deleted", "id": history_id})
     return {"deleted": True, "dir_kept_for": holders}
 
+# Uploaded previews older than this are removed on the next preview upload.
+PREVIEW_MAX_AGE_SECONDS = 24 * 3600
+
+
 @router.post("/preview/upload")
 async def preview_upload(video: UploadFile = File(...)):
     ext = media_upload_suffix(video.filename, ".mp4")
@@ -651,6 +656,8 @@ async def preview_upload(video: UploadFile = File(...)):
         raise InvalidMediaFileError()
 
     def _write_and_extract() -> bool:
+        # Previews are throwaway scratch copies that nothing else deletes.
+        sweep_stale_files(PREVIEW_DIR, PREVIEW_MAX_AGE_SECONDS)
         with open(vid_path, "wb") as f:
             f.write(payload)
         if ext in {".wav", ".mp3", ".m4a", ".aac"}:
