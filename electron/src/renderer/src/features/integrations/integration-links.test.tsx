@@ -18,6 +18,8 @@ vi.mock('@/components/app-shell/workspace-header', () => ({
 vi.mock('@/hooks/use-backend-status', () => ({
   useBackendStatus: () => ({ baseUrl: 'http://127.0.0.1:3912' }),
 }));
+const toast = vi.hoisted(() => ({ error: vi.fn() }));
+vi.mock('sonner', () => ({ toast }));
 const bridge = vi.hoisted(() => ({ openExternal: vi.fn() }));
 vi.mock('@/components/bridge', () => ({
   getBridge: () => ({ files: { openExternal: bridge.openExternal } }),
@@ -48,4 +50,16 @@ it('keeps the vendor website action on the wired integration detail page', () =>
   expect(bridge.openExternal).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: 'Open' }));
   expect(bridge.openExternal).toHaveBeenCalledWith('https://github.com/openai/codex');
+});
+
+it('reports a refused vendor website open instead of leaving the rejection unhandled', async () => {
+  bridge.openExternal.mockRejectedValueOnce(new Error('Refusing to open ftp: URLs'));
+  render(<IntegrationDetailPage />);
+  fireEvent.click(screen.getByRole('button', { name: 'Open' }));
+  await waitFor(() =>
+    expect(toast.error).toHaveBeenCalledWith(
+      'Could not open the website. Check your default browser and try again.',
+    ),
+  );
+  expect(toast.error).not.toHaveBeenCalledWith('Refusing to open ftp: URLs');
 });

@@ -12,6 +12,10 @@ metadata and the backend fallback mirror it.
 
 - The open-source app no longer contains a licence-key client
 
+### Fixed
+
+- A failed vendor website open on an integration page now shows an error instead of an unhandled rejection (#2844)
+
 ### Removed
 
 - The unused licence-key client and its Lemon Squeezy network call are gone from the open-source app (#2812)

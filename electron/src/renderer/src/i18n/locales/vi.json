@@ -2928,6 +2928,7 @@
     "setupUnavailable": "Không có cấu hình cho địa chỉ backend hiện tại. Hãy kiểm tra URL backend trong Cài đặt.",
     "capabilitiesTitle": "Khả năng",
     "websiteTitle": "Trang web",
+    "websiteOpenFailed": "Không thể mở trang web. Hãy kiểm tra trình duyệt mặc định của bạn rồi thử lại.",
     "mcpHttpHint": "Trỏ bất kỳ máy khách MCP Streamable HTTP nào tới URL này. Gửi header {{header}} để máy khách có giọng riêng.",
     "mcpStdioHint": "Với máy khách chỉ hỗ trợ stdio, chạy shim đi kèm từ bản sao mã nguồn VoiceStudio. Thay cwd bằng đường dẫn bản sao của bạn.",
     "apiHint": "Các endpoint tương thích OpenAI trên backend này. Yêu cầu cục bộ không cần khóa; yêu cầu từ xa cần khóa API của backend.",

@@ -2930,6 +2930,7 @@
     "setupUnavailable": "A configuração não está disponível para o endereço atual do backend. Verifique o URL do backend nas Definições.",
     "capabilitiesTitle": "Recursos",
     "websiteTitle": "Site",
+    "websiteOpenFailed": "Não foi possível abrir o site. Verifique o navegador padrão e tente novamente.",
     "mcpHttpHint": "Aponte qualquer cliente MCP Streamable HTTP para este URL. Envie o cabeçalho {{header}} para dar ao cliente uma voz própria.",
     "mcpStdioHint": "Para clientes só stdio, execute o shim incluído a partir de uma cópia do código-fonte do VoiceStudio. Substitua cwd pelo caminho da sua cópia.",
     "apiHint": "Endpoints compatíveis com OpenAI neste backend. Pedidos locais não precisam de chave; pedidos remotos precisam da chave de API do backend.",

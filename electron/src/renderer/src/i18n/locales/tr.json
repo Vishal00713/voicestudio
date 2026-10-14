@@ -2928,6 +2928,7 @@
     "setupUnavailable": "Mevcut arka uç adresi için kurulum kullanılamıyor. Ayarlar'da arka uç URL'sini kontrol edin.",
     "capabilitiesTitle": "Yetenekler",
     "websiteTitle": "Web sitesi",
+    "websiteOpenFailed": "Web sitesi açılamadı. Varsayılan tarayıcınızı kontrol edip tekrar deneyin.",
     "mcpHttpHint": "Herhangi bir Streamable HTTP MCP istemcisini bu URL'ye yönlendirin. İstemciye kendi sesini vermek için {{header}} başlığını gönderin.",
     "mcpStdioHint": "Yalnızca stdio destekleyen istemciler için, paketlenmiş shim'i VoiceStudio kaynak kodu kopyasından çalıştırın. cwd değerini kopyanızın yoluyla değiştirin.",
     "apiHint": "Bu arka uçtaki OpenAI uyumlu uç noktalar. Yerel istekler anahtar gerektirmez; uzak istekler arka ucun API anahtarını gerektirir.",
