@@ -141,15 +141,14 @@ remote key — is what's gating access.
   `OMNIVOICE_SERVER_MODE=1` is set on the box; in server mode the **API key** is
   the access control for those too (the short share PIN is consumption-only and
   does not gate admin) — see the credential rule below.
-- **Trust a LAN or reverse proxy with `OMNIVOICE_TRUSTED_NETWORKS`.** If you run
-  VoiceStudio behind a reverse proxy (nginx, Caddy, NPM) or only expose it on a
-  trusted LAN/Tailnet, set `OMNIVOICE_TRUSTED_NETWORKS` to a comma-separated list
-  of CIDRs (e.g. `192.168.1.0/24,10.0.0.0/8`); clients from those networks are
-  then treated as trusted by the **consumption** gates (share PIN, API key,
-  dictation WebSocket) and need no key/PIN. A proxy that forwards the original
-  `Host` (Caddy and Nginx Proxy Manager do) also needs its host name in
-  `OMNIVOICE_ALLOWED_HOSTS`, or requests without the API key are refused as an
-  unrecognized host name; IP addresses, `localhost` and `*.ts.net` names need
+- **Trust a LAN with `OMNIVOICE_TRUSTED_NETWORKS` or a reverse proxy with `OMNIVOICE_TRUSTED_PROXIES`.** If you
+  only expose VoiceStudio on a trusted LAN/Tailnet, set `OMNIVOICE_TRUSTED_NETWORKS` to a comma-separated list
+  of CIDRs (e.g. `192.168.1.0/24,10.0.0.0/8`); clients from those networks are then treated as trusted by the
+  **consumption** gates (share PIN, API key, dictation WebSocket) and need no key/PIN. If running behind a
+  non-loopback reverse proxy (Nginx, Caddy, NPM), configure `OMNIVOICE_TRUSTED_PROXIES` with the proxy's IP/CIDR
+  so `X-Forwarded-For` and `Forwarded` client addresses are evaluated securely. A proxy that forwards the original
+  `Host` (Caddy and Nginx Proxy Manager do) also needs its host name in `OMNIVOICE_ALLOWED_HOSTS`, or requests
+  without the API key are refused as an unrecognized host name; IP addresses, `localhost` and `*.ts.net` names need
   no entry (see [host names](api-auth.md#requests-from-other-websites-and-host-names)).
   **Admin routes** (`/system/*`,
   `/api/settings/*`) stay true-loopback-only — use `OMNIVOICE_SERVER_MODE=1` for

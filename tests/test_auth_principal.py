@@ -459,3 +459,133 @@ def test_principal_dataclass_cannot_carry_a_raw_secret():
     assert "credential" not in AuthPrincipal.__dataclass_fields__
     assert "token" not in AuthPrincipal.__dataclass_fields__
     assert "secret" not in AuthPrincipal.__dataclass_fields__
+
+
+def test_reverse_proxy_forwarded_header_prevents_loopback_bypass(monkeypatch, store):
+    monkeypatch.setenv("OMNIVOICE_API_KEY", MASTER)
+
+    # An external client forwarded through a local reverse proxy (peer=127.0.0.1)
+    # must NOT receive loopback privileges.
+    proxied_external = Connection(
+        host="127.0.0.1",
+        headers={"x-forwarded-for": "203.0.113.195"},
+    )
+    principal = resolve_principal(proxied_external, store=store)
+    assert principal.kind is PrincipalKind.ANONYMOUS
+    assert principal.allows("admin") is False
+    assert principal.allows("native") is False
+
+
+def test_reverse_proxy_forwarded_with_auth_resolves_credential(monkeypatch, store):
+    monkeypatch.setenv("OMNIVOICE_API_KEY", MASTER)
+
+    # An authenticated remote client through a local reverse proxy gets API_KEY principal
+    proxied_auth = Connection(
+        host="127.0.0.1",
+        headers={
+            "x-forwarded-for": "203.0.113.195",
+            "authorization": f"Bearer {MASTER}",
+        },
+    )
+    principal = resolve_principal(proxied_auth, store=store)
+    assert principal.kind is PrincipalKind.API_KEY
+    assert principal.allows("admin") is True
+    assert principal.allows("native") is False
+
+
+def test_untrusted_direct_peer_cannot_spoof_loopback_via_forwarded_headers(monkeypatch, store):
+    monkeypatch.setenv("OMNIVOICE_API_KEY", MASTER)
+
+    # Direct connection from external IP sending forged X-Forwarded-For: 127.0.0.1
+    # must NOT be trusted because the peer itself is not loopback/trusted.
+    direct_attacker = Connection(
+        host="203.0.113.195",
+        headers={"x-forwarded-for": "127.0.0.1"},
+    )
+    principal = resolve_principal(direct_attacker, store=store)
+    assert principal.kind is PrincipalKind.ANONYMOUS
+    assert principal.allows("admin") is False
+    assert principal.allows("native") is False
+
+
+def test_rfc7239_forwarded_header_evaluated_for_proxy(monkeypatch, store):
+    monkeypatch.setenv("OMNIVOICE_API_KEY", MASTER)
+
+    proxied = Connection(
+        host="127.0.0.1",
+        headers={"forwarded": "for=198.51.100.42;proto=https"},
+    )
+    principal = resolve_principal(proxied, store=store)
+    assert principal.kind is PrincipalKind.ANONYMOUS
+    assert principal.allows("admin") is False
+
+
+def test_trusted_network_peer_cannot_spoof_loopback_via_forwarded_for(monkeypatch, store):
+    monkeypatch.setenv("OMNIVOICE_API_KEY", MASTER)
+    monkeypatch.setenv("OMNIVOICE_TRUSTED_NETWORKS", "192.168.1.0/24")
+
+    # A peer in trusted networks is authorized for consume, NOT a trusted reverse proxy
+    lan_client = Connection(
+        host="192.168.1.50",
+        headers={"x-forwarded-for": "127.0.0.1"},
+    )
+    principal = resolve_principal(lan_client, store=store)
+    assert principal.kind is PrincipalKind.TRUSTED_NETWORK
+    assert principal.allows("consume") is True
+    assert principal.allows("admin") is False
+    assert principal.allows("native") is False
+
+
+def test_designated_trusted_proxy_env_allows_proxying(monkeypatch, store):
+    monkeypatch.setenv("OMNIVOICE_API_KEY", MASTER)
+    monkeypatch.setenv("OMNIVOICE_TRUSTED_PROXIES", "10.0.0.2")
+
+    designated_proxy = Connection(
+        host="10.0.0.2",
+        headers={
+            "x-forwarded-for": "203.0.113.1",
+            "authorization": f"Bearer {MASTER}",
+        },
+    )
+    principal = resolve_principal(designated_proxy, store=store)
+    assert principal.kind is PrincipalKind.API_KEY
+    assert principal.allows("admin") is True
+    assert principal.allows("native") is False
+
+
+def test_require_native_access_rejects_proxied_remote_caller():
+    import sys
+    from types import ModuleType, SimpleNamespace
+
+    for mod in ["fastapi", "starlette", "starlette.requests", "starlette.datastructures"]:
+        if mod not in sys.modules:
+            sys.modules[mod] = ModuleType(mod)
+
+    if not hasattr(sys.modules["fastapi"], "HTTPException"):
+        class HTTPException(Exception):
+            def __init__(self, status_code: int, detail: str = ""):
+                self.status_code = status_code
+                self.detail = detail
+                super().__init__(detail)
+
+        sys.modules["fastapi"].HTTPException = HTTPException
+        sys.modules["fastapi"].Request = object
+        sys.modules["starlette.requests"].Request = object
+
+    from api.dependencies import require_native_access
+    HTTPException = sys.modules["fastapi"].HTTPException
+
+    # Direct loopback request succeeds
+    loopback_req = SimpleNamespace(client=SimpleNamespace(host="127.0.0.1"), headers={})
+    require_native_access(loopback_req)
+
+    # Remote caller through local proxy sending Forwarded header gets rejected with 403
+    proxied_req = SimpleNamespace(
+        client=SimpleNamespace(host="127.0.0.1"),
+        headers={"forwarded": "for=198.51.100.42"},
+    )
+    with pytest.raises(HTTPException) as exc_info:
+        require_native_access(proxied_req)
+    assert exc_info.value.status_code == 403
+
+

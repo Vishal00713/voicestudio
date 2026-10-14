@@ -24,6 +24,7 @@ from fastapi import HTTPException, Request
 from core.auth import (
     CredentialTransport,
     PrincipalKind,
+    client_host,
     is_local_host,
     is_loopback,
     principal_for,
@@ -164,7 +165,7 @@ def require_loopback(request: Request) -> None:
       loopback-only; remote admin requires the long API key. See
       docs/api-auth.md (#1213).
     """
-    host = request.client.host if request.client else None
+    host = client_host(request)
     if is_loopback(host):
         return
     if _server_mode():
@@ -231,7 +232,7 @@ def check_admin(request: Request) -> None:
     key is configured. Share PINs and trusted CIDRs are consumption credentials;
     neither authorizes this gate.
     """
-    host = request.client.host if request.client else None
+    host = client_host(request)
     if is_loopback(host):
         return
     if _server_mode():
@@ -253,7 +254,7 @@ def require_admin_action(request: Request) -> None:
     website must not be able to trigger them with a link or an image.
     """
     reject_cross_site_get(request)
-    host = request.client.host if request.client else None
+    host = client_host(request)
     if is_loopback(host):
         return
     if _server_mode() and _request_presents_admin_credential(
@@ -271,7 +272,7 @@ def require_desktop(request: Request) -> None:
     shell's native file-picker boundary.  These capabilities therefore remain
     strictly loopback-only even when server mode is enabled.
     """
-    host = request.client.host if request.client else None
+    host = client_host(request)
     if is_loopback(host):
         return
     raise HTTPException(status_code=403, detail="desktop origin required")
@@ -286,7 +287,7 @@ def require_local(request: Request) -> None:
 
     In server mode this consumption gate is a no-op. Admin dependencies remain
     method-aware and independent from this exemption."""
-    host = request.client.host if request.client else None
+    host = client_host(request)
     if is_local_host(host):
         return
     if _server_mode():
@@ -302,7 +303,7 @@ def require_native_access(request: Request) -> None:
     native file pickers: a remote API caller must never probe or overwrite an
     arbitrary path on the backend host, even with the server API key.
     """
-    host = request.client.host if request.client else None
+    host = client_host(request)
     if not is_loopback(host):
         raise HTTPException(status_code=403, detail="native filesystem access requires loopback origin")
 

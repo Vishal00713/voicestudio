@@ -17,6 +17,7 @@ env var that exempts trusted callers:
 | **Share PIN** | the in-app Network share toggle | casual LAN-share guests, one session | non-loopback **HTTP** |
 | **API key** | `OMNIVOICE_API_KEY` env var on the backend | direct clients and first-party session bootstrap | non-loopback **HTTP + WebSocket** |
 | **Trusted networks** | `OMNIVOICE_TRUSTED_NETWORKS` env var | *exempts* the two gates above | non-loopback **consumption** routes only |
+| **Trusted reverse proxies** | `OMNIVOICE_TRUSTED_PROXIES` env var | trusts forwarded client IP headers (`X-Forwarded-For`, `Forwarded`) | reverse proxy deployments |
 
 Loopback traffic (`127.0.0.1`, `::1`, `localhost`) is **never** gated — local
 tools keep working unchanged whichever gate is set.
@@ -267,6 +268,26 @@ the gate); IPv4-mapped IPv6 addresses (`::ffff:192.168.1.5`) from dual-stack
 proxies are unwrapped so they match IPv4 CIDRs; the value is read at request
 time, so in production **restart the backend** to apply a change. Default empty
 — no change to the strict loopback default.
+
+---
+
+## Reverse proxies and forwarded headers (OMNIVOICE_TRUSTED_PROXIES)
+
+When VoiceStudio runs behind a reverse proxy (e.g. Nginx, Caddy, Traefik, or an ingress controller), the immediate TCP connection originates from the proxy's IP rather than the end client.
+
+By default, **only loopback addresses** (`127.0.0.1`, `::1`) are trusted as reverse proxies. For a reverse proxy co-located on localhost, VoiceStudio automatically reads the client address from `X-Forwarded-For` or RFC 7239 `Forwarded` headers, and applies authorization gates (such as loopback or native access checks) against that true client IP rather than the proxy's address.
+
+If your reverse proxy runs on a separate machine or container:
+- Configure `OMNIVOICE_TRUSTED_PROXIES` with a comma-separated list of proxy IP addresses or CIDR ranges:
+  ```bash
+  export OMNIVOICE_TRUSTED_PROXIES="10.0.0.2,172.18.0.0/16"
+  ```
+- Forwarded headers sent by untrusted remote peers are ignored, preventing direct callers from spoofing loopback capabilities (`native`, `desktop`).
+- For protocol scheme forwarding (`https`), configure Uvicorn's `--forwarded-allow-ips` setting in tandem with this variable.
+
+### Distinction between OMNIVOICE_TRUSTED_NETWORKS and OMNIVOICE_TRUSTED_PROXIES
+- **`OMNIVOICE_TRUSTED_NETWORKS`** is a **consumption authorization** bypass for trusted client subnets (exempting them from the share PIN and API key requirements on speech synthesis and playback). It does **not** grant permission to forge client addresses via forwarded headers.
+- **`OMNIVOICE_TRUSTED_PROXIES`** is a **header trust** setting that designates which proxies are permitted to assert end-client identities via `X-Forwarded-For` / `Forwarded`. Proxies listed here do not receive unauthenticated consumption or administrative access on their own.
 
 ---
 
