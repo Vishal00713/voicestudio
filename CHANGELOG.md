@@ -16,6 +16,10 @@ metadata and the backend fallback mirror it.
 
 - The unused licence-key client and its Lemon Squeezy network call are gone from the open-source app (#2812)
 
+### Fixed
+
+- Leave audio containing NaN or infinity intact during silence trimming, preserving its original length and invalid samples for later generation postprocessing, and sanitize them before DSP in the OpenAI-compatible speech route, streaming sentences and queued batch dubbing. (#2738) — thanks @rudycelekli!
+
 ## [0.5.7] — 2026-10-13
 
 **VoiceStudio now runs on PCs without a GPU and recovers instead of giving up.** Voice cloning uses the speech-to-text model you installed from Model Catalogue, GPU-less computers get the small CPU PyTorch build, and slow or busy backends are no longer reported as failed.

@@ -583,9 +583,9 @@ def _typed_speech_http_error(e: Exception) -> Optional[HTTPException]:
 
 def _run_tts(backend, text: str, kw: dict):
     """Run TTS inference in the GPU thread pool."""
-    from services.audio_dsp import apply_mastering, normalize_audio
+    from services.audio_dsp import apply_mastering, normalize_audio, sanitize_audio
     from services.watermark import mark_synthetic
-    wav = backend.generate(text, **kw)
+    wav = sanitize_audio(backend.generate(text, **kw))
     sr = backend.sample_rate
     # Engines that already emit mastered, studio-grade audio (e.g. VoxCPM2's
     # native 48 kHz) opt out of apply_mastering via `applies_own_mastering`.

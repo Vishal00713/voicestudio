@@ -383,6 +383,7 @@ def synthesize_chapter(
     """
     import torch
     from core.render_trace import call as trace_call
+    from services.audio_dsp import sanitize_audio
     from services.chunked_tts import (concatenate_audio_chunks,
                                       join_rendered_chunks,
                                       split_text_into_chunks)
@@ -438,7 +439,8 @@ def synthesize_chapter(
                     rendered = []
                     for c in chunks:
                         _stop_if_abandoned()
-                        rendered.append(trace_call("synthesis", synth, c, span.voice_id, span.speed))
+                        chunk_audio = trace_call("synthesis", synth, c, span.voice_id, span.speed)
+                        rendered.append(sanitize_audio(chunk_audio))
                         _note_chunk_done()
                     # Deliberately NOT pre-filtered (#1330). Dropping the empties
                     # here both hid them — a chapter would come back short with
