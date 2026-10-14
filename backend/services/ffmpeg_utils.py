@@ -718,6 +718,7 @@ async def probe_duration(path: str, *, allowed_root: str) -> float | None:
             ffprobe, "-v", "error",
             "-show_entries", "format=duration",
             "-of", "default=noprint_wrappers=1:nokey=1",
+            "--",
             str(media_path),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
@@ -748,6 +749,7 @@ async def probe_frame_rates(path: str) -> "tuple[str, str] | None":
             "-select_streams", "v:0",
             "-show_entries", "stream=r_frame_rate,avg_frame_rate",
             "-of", "csv=p=0",
+            "--",
             path,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
@@ -788,7 +790,7 @@ def _probe_audio_stream(path: str) -> "bool | None":
         try:
             proc = subprocess.run(
                 local_inputs_only([ffprobe, "-v", "error", "-select_streams", "a",
-                 "-show_entries", "stream=index", "-of", "csv=p=0", path], tool="ffprobe"),
+                 "-show_entries", "stream=index", "-of", "csv=p=0", "--", path], tool="ffprobe"),
                 capture_output=True, timeout=60, check=False,
             )
             if proc.returncode == 0:

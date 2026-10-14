@@ -61,7 +61,7 @@ async def probe(req: ProbeReq):
         )
     proc = await spawn_subprocess(
         ffprobe, "-v", "quiet", "-print_format", "json",
-        "-show_format", "-show_streams", target,
+        "-show_format", "-show_streams", "--", target,
         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
     )
     stdout, stderr = await proc.communicate()
