@@ -158,4 +158,64 @@ describe('typed media workflows', () => {
     const restored = parseWorkflowLibrary(saved, 'Untitled').documents[0];
     expect(compileWorkflow(restored).signature).toBe(compileWorkflow(document).signature);
   });
+
+  it('rejects workflows with unsafe step IDs during compilation', () => {
+    const document = audioRecipe(['audio', 'transcribe', 'end']);
+    document.steps[1].id = '__proto__';
+    document.connections[0].target = '__proto__';
+    document.connections[1].source = '__proto__';
+    expect(() => compileWorkflow(document)).toThrow('graph');
+  });
+
+  it('preserves null prototypes and ignores inherited properties across run restarts', () => {
+    const document = audioRecipe(['audio', 'transcribe', 'end']);
+    const plan = compileWorkflow(document);
+    const run = prepareRun(plan);
+    const restarted = prepareRun(plan, run);
+    expect(Object.getPrototypeOf(restarted.items[0].texts!)).toBeNull();
+    expect(Object.getPrototypeOf(restarted.items[0].audio)).toBeNull();
+    expect(Object.hasOwn(restarted.items[0].texts!, 'toString')).toBe(false);
+  });
+
+  it('resumes from structuredClone checkpoints without skipping unfinished work via inherited properties', async () => {
+    const document = audioRecipe(['audio', 'transcribe', 'translate', 'end']);
+    const plan = compileWorkflow(document);
+    let checkpointedRun: WorkflowRun | null = null;
+    const loadAudio = vi.fn(async () => wav());
+    const transcribe = vi.fn(async () => 'Raw transcript');
+    const failingTranslate = vi.fn(async () => {
+      throw new Error('transient failure');
+    });
+
+    const initialRun = prepareRun(plan);
+    const runResult = await executeWorkflow(
+      plan,
+      initialRun,
+      { loadAudio, transcribe, translate: failingTranslate, speak: vi.fn(), normalize: vi.fn() },
+      new AbortController().signal,
+      async (saved) => {
+        checkpointedRun = saved;
+      },
+    );
+
+    expect(runResult.items[0].state).toBe('failed');
+    expect(checkpointedRun).not.toBeNull();
+    // structuredClone strips null prototypes; verify restored properties have Object.prototype
+    expect(Object.getPrototypeOf(checkpointedRun!.items[0].texts!)).toBe(Object.prototype);
+    expect('toString' in checkpointedRun!.items[0].texts!).toBe(true);
+
+    const succeedingTranslate = vi.fn(async () => 'Completed translation');
+    const resumed = await executeWorkflow(
+      plan,
+      prepareRun(plan, checkpointedRun),
+      { loadAudio, transcribe, translate: succeedingTranslate, speak: vi.fn(), normalize: vi.fn() },
+      new AbortController().signal,
+      async () => {},
+    );
+
+    expect(resumed.items[0].state).toBe('done');
+    expect(transcribe).toHaveBeenCalledTimes(1);
+    expect(succeedingTranslate).toHaveBeenCalledTimes(1);
+    expect(resumed.items[0].texts?.[plan.steps[2].id]).toBe('Completed translation');
+  });
 });

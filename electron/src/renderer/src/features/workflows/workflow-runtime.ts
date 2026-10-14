@@ -1,4 +1,4 @@
-import { CONDITION_BRANCHES } from './workflow-model';
+import { CONDITION_BRANCHES, isSafeStepId } from './workflow-model';
 import type { ConditionBranch, WorkflowDocument, WorkflowStep } from './workflow-model';
 
 export type RunState = 'ready' | 'running' | 'done' | 'failed' | 'cancelled';
@@ -61,6 +61,7 @@ export function compileWorkflow(document: WorkflowDocument, engine = ''): Execut
   const starts = document.steps.filter((step) => ['start', 'audio'].includes(step.kind));
   const ids = new Set(document.steps.map((step) => step.id));
   if (starts.length !== 1 || ids.size !== document.steps.length ||
+    document.steps.some((step) => !isSafeStepId(step.id)) ||
     document.connections.some((edge) => !ids.has(edge.source) || !ids.has(edge.target)))
     throw new WorkflowValidationError('graph');
   const byId = new Map<string, WorkflowStep>(document.steps.map((step) => [step.id, step]));
@@ -73,8 +74,8 @@ export function compileWorkflow(document: WorkflowDocument, engine = ''): Execut
       throw new WorkflowValidationError('graph');
   }
   const steps: WorkflowStep[] = [];
-  const next: Record<string, string> = {};
-  const branches: Record<string, Record<ConditionBranch, string>> = {};
+  const next: Record<string, string> = Object.create(null);
+  const branches: Record<string, Record<ConditionBranch, string>> = Object.create(null);
   // The value kind each node is ENTERED with. Two paths that re-merge must
   // agree on it, or the shared tail would receive audio down one branch and
   // text down the other; recording it also stops the walk re-validating a
@@ -104,9 +105,9 @@ export function compileWorkflow(document: WorkflowDocument, engine = ''): Execut
       if (edges.length !== 2 || CONDITION_BRANCHES.some(
         (branch) => edges.filter((edge) => edge.sourceHandle === branch).length !== 1))
         throw new WorkflowValidationError('graph');
-      branches[step.id] = Object.fromEntries(CONDITION_BRANCHES.map((branch) =>
+      branches[step.id] = Object.assign(Object.create(null), Object.fromEntries(CONDITION_BRANCHES.map((branch) =>
         [branch, edges.find((edge) => edge.sourceHandle === branch)!.target],
-      )) as Record<ConditionBranch, string>;
+      ))) as Record<ConditionBranch, string>;
       for (const branch of CONDITION_BRANCHES) walk(byId.get(branches[step.id][branch])!, type, onward);
       return;
     }
@@ -164,9 +165,18 @@ export function compileWorkflow(document: WorkflowDocument, engine = ''): Execut
 export function prepareRun(plan: ExecutionPlan, previous?: WorkflowRun | null): WorkflowRun {
   if (previous?.version === 1 && previous.signature === plan.signature && previous.items.length === plan.scripts.length) {
     const restored = structuredClone(previous);
-    return { ...restored, items: restored.items.map((item) => ({ ...item, state: item.state === 'done' ? 'done' : 'ready', error: undefined })) };
+    return {
+      ...restored,
+      items: restored.items.map((item) => ({
+        ...item,
+        state: item.state === 'done' ? 'done' : 'ready',
+        error: undefined,
+        audio: Object.assign(Object.create(null), item.audio),
+        texts: Object.assign(Object.create(null), item.texts),
+      })),
+    };
   }
-  return { version: 1, signature: plan.signature, updatedAt: Date.now(), items: plan.scripts.map((script) => ({ ...script, state: 'ready', audio: {}, texts: {} })) };
+  return { version: 1, signature: plan.signature, updatedAt: Date.now(), items: plan.scripts.map((script) => ({ ...script, state: 'ready', audio: Object.create(null), texts: Object.create(null) })) };
 }
 
 export interface WorkflowOperations {
@@ -193,13 +203,15 @@ export async function executeWorkflow(
     if (item.state === 'done') continue;
     try {
       signal.throwIfAborted();
-      item.texts ??= {};
+      const texts: Record<string, string> = (item.texts = Object.assign(Object.create(null), item.texts));
+      const audio: Record<string, Blob> = (item.audio = Object.assign(Object.create(null), item.audio));
       let value: string | Blob = item.text;
       const input = plan.steps[0];
-      if (!item.sourceId) item.texts[input.id] = item.text;
+      if (!isSafeStepId(input.id)) throw new WorkflowValidationError('graph');
+      if (!item.sourceId) texts[input.id] = item.text;
       if (item.sourceId) {
-        value = item.audio[input.id] || await operations.loadAudio!(item.sourceId);
-        item.audio[input.id] = value;
+        value = (Object.hasOwn(audio, input.id) ? audio[input.id] : undefined) || await operations.loadAudio!(item.sourceId);
+        audio[input.id] = value;
         await save();
       }
       // Each clip walks the graph itself: with a fork, two clips from one run
@@ -209,9 +221,11 @@ export async function executeWorkflow(
       let finished = input;
       let cursor: string | undefined = plan.next[input.id];
       while (cursor) {
+        if (!isSafeStepId(cursor)) throw new WorkflowValidationError('graph');
         // Annotated because `cursor`'s next value is read off this step, and
         // inferring one from the other is circular.
         const step: WorkflowStep = byId.get(cursor)!;
+        if (!step || !isSafeStepId(step.id)) throw new WorkflowValidationError('graph');
         if (step.kind === 'end') { finished = step; break; }
         if (step.kind === 'condition') {
           cursor = plan.branches[step.id][matchesCondition(step, value as string) ? 'yes' : 'no'];
@@ -221,7 +235,7 @@ export async function executeWorkflow(
         item.stepId = step.id;
         item.state = 'running';
         await save();
-        const cached = item.texts[step.id] ?? item.audio[step.id];
+        const cached = Object.hasOwn(texts, step.id) ? texts[step.id] : Object.hasOwn(audio, step.id) ? audio[step.id] : undefined;
         if (cached !== undefined) value = cached;
         else {
           switch (step.kind) {
@@ -234,10 +248,10 @@ export async function executeWorkflow(
           }
           if (typeof value === 'string') {
             if (!value.trim()) throw new Error('workflowRun.incomplete');
-            item.texts[step.id] = value;
+            texts[step.id] = value;
           } else {
             if (!value.size) throw new Error('workflowRun.incomplete');
-            item.audio[step.id] = value;
+            audio[step.id] = value;
           }
         }
         item.outputStep = step.id;

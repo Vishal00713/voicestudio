@@ -97,6 +97,18 @@ export function makeCallWorkflow(name: string, brief: string): WorkflowDocument 
   };
 }
 
+const DANGEROUS_OBJECT_KEYS = new Set([
+  '__proto__',
+  'constructor',
+  'prototype',
+  ...Object.getOwnPropertyNames(Object.prototype),
+]);
+
+export function isSafeStepId(id: unknown): id is string {
+  return typeof id === 'string' && id.length > 0 && id.length <= 128 &&
+    !DANGEROUS_OBJECT_KEYS.has(id) && /^[a-zA-Z0-9_-]+$/.test(id);
+}
+
 /** Treat saved canvas data as untrusted; never let malformed storage break the workspace. */
 export function parseWorkflowLibrary(raw: string | null, untitled: string): WorkflowLibrary {
   try {
@@ -113,6 +125,7 @@ export function parseWorkflowLibrary(raw: string | null, untitled: string): Work
           const position = step.position as Record<string, unknown> | undefined;
           if (
             typeof step.id !== 'string' ||
+            !isSafeStepId(step.id) ||
             !STEP_KINDS.includes(step.kind as StepKind) ||
             !position ||
             !Number.isFinite(position.x) ||
@@ -148,6 +161,7 @@ export function parseWorkflowLibrary(raw: string | null, untitled: string): Work
             const edge = candidateEdge as Record<string, unknown>;
             if (
               typeof edge.id !== 'string' ||
+              !isSafeStepId(edge.id) ||
               typeof edge.source !== 'string' ||
               typeof edge.target !== 'string' ||
               !ids.has(edge.source) ||

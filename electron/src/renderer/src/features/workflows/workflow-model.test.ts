@@ -9,6 +9,7 @@ import {
   repairWorkflowName,
   removeWorkflowStep,
   removedWorkflowData,
+  isSafeStepId,
 } from './workflow-model';
 
 it('creates a connected, editable call template without a destination number', () => {
@@ -122,4 +123,40 @@ it('retains queued media deletions across reloads and ignores malformed queue en
   const queued = { media: ['deleted-source'], runs: ['deleted-workflow'] };
   const loaded = parseWorkflowLibrary(JSON.stringify({ version: 1, activeId: document.id, documents: [document], cleanup: [queued, null, { media: [42], runs: [] }] }), 'Untitled');
   expect(loaded.cleanup).toEqual([queued]);
+});
+
+it('rejects unsafe step IDs to prevent prototype pollution', () => {
+  expect(isSafeStepId('step-1')).toBe(true);
+  expect(isSafeStepId('a1b2c3d4-e5f6-7890-abcd-ef1234567890')).toBe(true);
+  expect(isSafeStepId('__proto__')).toBe(false);
+  expect(isSafeStepId('constructor')).toBe(false);
+  expect(isSafeStepId('prototype')).toBe(false);
+  expect(isSafeStepId('toString')).toBe(false);
+  expect(isSafeStepId('valueOf')).toBe(false);
+  expect(isSafeStepId('hasOwnProperty')).toBe(false);
+  expect(isSafeStepId('')).toBe(false);
+  expect(isSafeStepId('step with spaces')).toBe(false);
+  expect(isSafeStepId('step/path')).toBe(false);
+});
+
+it('sanitizes and drops steps with prototype polluting IDs from saved library', () => {
+  const document = makeWorkflow('Pollution Test');
+  const maliciousStep = {
+    id: '__proto__',
+    kind: 'speak',
+    position: { x: 100, y: 100 },
+    title: 'Exploit',
+    text: 'polluted',
+  };
+  const saved = JSON.stringify({
+    version: 1,
+    activeId: document.id,
+    documents: [{
+      ...document,
+      steps: [...document.steps, maliciousStep],
+    }],
+  });
+  const loaded = parseWorkflowLibrary(saved, 'Untitled').documents[0];
+  expect(loaded.steps.some((step) => step.id === '__proto__')).toBe(false);
+  expect(({} as Record<string, unknown>).polluted).toBeUndefined();
 });

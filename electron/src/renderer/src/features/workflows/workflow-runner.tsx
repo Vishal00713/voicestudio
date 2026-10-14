@@ -86,8 +86,8 @@ export function WorkflowRunner({ document, onClose, onBusy, storageReady = true 
         <progress max={run.items.length} value={done} className="h-1 w-full accent-primary" />
         {!matches && <p className="text-xs text-muted-foreground">{t('workflowRun.changed')}</p>}
         {run.items.map((item, index) => {
-          const audio = item.outputStep ? item.audio[item.outputStep] : item.sourceId ? undefined : Object.values(item.audio).at(-1);
-          const text = item.outputStep ? item.texts?.[item.outputStep] : undefined;
+          const audio = item.outputStep ? Object.hasOwn(item.audio, item.outputStep) ? item.audio[item.outputStep] : undefined : item.sourceId ? undefined : Object.values(item.audio).at(-1);
+          const text = item.outputStep && item.texts && Object.hasOwn(item.texts, item.outputStep) ? item.texts[item.outputStep] : undefined;
           const state = item.state === 'running' && !busy ? 'cancelled' : item.state;
           return <article key={index} className="workflow-run-output">
             <div className="flex items-center justify-between gap-2"><strong className="truncate text-xs">{item.name}</strong><span className="text-xs text-muted-foreground">{t(`batch.status_${state === "ready" ? "queued" : state}`)}</span></div>
