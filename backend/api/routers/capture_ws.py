@@ -83,6 +83,11 @@ MIN_BUFFER_BYTES = 64000  # ~2s of 16-bit mono 16kHz — needs enough WebM frame
 # to transcribe whatever the user recorded, even short utterances.
 MIN_FINAL_BUFFER_BYTES = 4000  # ~125ms of 16-bit mono 16kHz
 
+# Maximum accumulated audio buffer to prevent heap exhaustion DoS (~25MB, ~13 min of 16kHz 16-bit mono).
+MAX_STREAM_BUFFER_BYTES = int(
+    os.environ.get("OMNIVOICE_MAX_STREAM_BUFFER_BYTES", 25 * 1024 * 1024)
+)
+
 # ── Dictate-over-playback AEC (parity Action 8b, opt-in) ──────────────────
 # Activated by the ``?aec=1`` query param. When OFF (the default), the
 # protocol and behaviour are byte-for-byte unchanged. When ON, the client
@@ -399,6 +404,7 @@ async def ws_transcribe(websocket: WebSocket):
     # WebSocket is already in a closed/closing state and any attempt to
     # call `send_json()` will raise "Unexpected ASGI message".
     client_disconnected = False
+    quota_exceeded = False
 
     async def receive_audio():
         """Receive audio frames from the client.
@@ -410,7 +416,7 @@ async def ws_transcribe(websocket: WebSocket):
         message as the authoritative result and skip the duplicate HTTP
         POST that used to run on every dictation.
         """
-        nonlocal total_bytes, last_audio_time, running, client_disconnected, paused
+        nonlocal total_bytes, last_audio_time, running, client_disconnected, paused, quota_exceeded
         try:
             while running:
                 msg = await websocket.receive()
@@ -437,6 +443,18 @@ async def ws_transcribe(websocket: WebSocket):
                         if not payload:
                             continue
                         data = aec.process_near_end(payload)
+                    if total_bytes + len(data) > MAX_STREAM_BUFFER_BYTES:
+                        logger.warning(
+                            "WS transcribe audio buffer exceeded limit (%d bytes), terminating stream",
+                            MAX_STREAM_BUFFER_BYTES,
+                        )
+                        quota_exceeded = True
+                        await _safe_send({
+                            "type": "error",
+                            "error": "Audio stream exceeded maximum buffer limit",
+                        })
+                        running = False
+                        break
                     audio_chunks.append(data)
                     total_bytes += len(data)
                     last_audio_time = time.monotonic()
@@ -519,53 +537,54 @@ async def ws_transcribe(websocket: WebSocket):
         except (asyncio.CancelledError, Exception):
             pass
 
-    # Final transcription on complete buffer — skip if client already gone.
-    if total_bytes > MIN_FINAL_BUFFER_BYTES:
-        try:
-            # The vocabulary hint is a dictation setting; API stream clients
-            # on PLATFORM_STREAM_PATH never get it.
-            result = await _transcribe_buffer_full(
-                audio_chunks, pcm_sr=pcm_sr, dictation=not is_platform_stream,
-            )
-            # Dictation v2: deterministic polish so the pasted final reads
-            # like typed text (leading capital, terminal punctuation).
-            result["text"] = polish_text(result.get("text", ""))
-            # Wave 2.1: optional local-LLM refinement of the final text.
-            # HARD-BOUNDED (maybe_refine_async, ~4s OMNIVOICE_REFINE_TIMEOUT_S):
-            # a slow/dead LLM can never delay this `final` beyond the budget —
-            # it falls back to the unrefined (but polished) text. Best-effort:
-            # never let refinement turn a good final into an error. The raw
-            # text always ships too — clients paste refined_text ?? text.
-            if result.get("text"):
-                try:
-                    from services.refinement import maybe_refine_async
-                    refined = await maybe_refine_async(result["text"])
-                    if refined and refined != result["text"]:
-                        result["refined_text"] = refined
-                except Exception as e:  # noqa: BLE001
-                    logger.debug("Dictation refinement skipped: %s", e)
-            if not await _safe_send({"type": "final", **result}):
-                logger.debug("Skipped final send — client already disconnected")
-        except Exception as e:
-            from services.model_acceptance import ModelLicenceNotAccepted
+    # Final transcription on complete buffer — skip if client already gone or quota exceeded.
+    if not quota_exceeded:
+        if total_bytes > MIN_FINAL_BUFFER_BYTES:
+            try:
+                # The vocabulary hint is a dictation setting; API stream clients
+                # on PLATFORM_STREAM_PATH never get it.
+                result = await _transcribe_buffer_full(
+                    audio_chunks, pcm_sr=pcm_sr, dictation=not is_platform_stream,
+                )
+                # Dictation v2: deterministic polish so the pasted final reads
+                # like typed text (leading capital, terminal punctuation).
+                result["text"] = polish_text(result.get("text", ""))
+                # Wave 2.1: optional local-LLM refinement of the final text.
+                # HARD-BOUNDED (maybe_refine_async, ~4s OMNIVOICE_REFINE_TIMEOUT_S):
+                # a slow/dead LLM can never delay this `final` beyond the budget —
+                # it falls back to the unrefined (but polished) text. Best-effort:
+                # never let refinement turn a good final into an error. The raw
+                # text always ships too — clients paste refined_text ?? text.
+                if result.get("text"):
+                    try:
+                        from services.refinement import maybe_refine_async
+                        refined = await maybe_refine_async(result["text"])
+                        if refined and refined != result["text"]:
+                            result["refined_text"] = refined
+                    except Exception as e:  # noqa: BLE001
+                        logger.debug("Dictation refinement skipped: %s", e)
+                if not await _safe_send({"type": "final", **result}):
+                    logger.debug("Skipped final send — client already disconnected")
+            except Exception as e:
+                from services.model_acceptance import ModelLicenceNotAccepted
 
-            if isinstance(e, ModelLicenceNotAccepted):
-                # Accepted at session start, revoked since: keep it typed.
-                await _safe_send({"type": "error", "kind": e.detail()["code"], **e.detail()})
-            else:
-                logger.exception("Final transcription failed")
-                await _safe_send({"type": "error", "message": str(e),
-                                  "kind": "transcribe", "detail": str(e)})
-    else:
-        await _safe_send({
-            "type": "final",
-            "text": "",
-            "segments": [],
-            "language": "unknown",
-            "duration_s": 0,
-            "transcription_time_s": 0,
-            "engine": "none",
-        })
+                if isinstance(e, ModelLicenceNotAccepted):
+                    # Accepted at session start, revoked since: keep it typed.
+                    await _safe_send({"type": "error", "kind": e.detail()["code"], **e.detail()})
+                else:
+                    logger.exception("Final transcription failed")
+                    await _safe_send({"type": "error", "message": str(e),
+                                      "kind": "transcribe", "detail": str(e)})
+        else:
+            await _safe_send({
+                "type": "final",
+                "text": "",
+                "segments": [],
+                "language": "unknown",
+                "duration_s": 0,
+                "transcription_time_s": 0,
+                "engine": "none",
+            })
 
     if not client_disconnected:
         try:
@@ -1009,6 +1028,7 @@ async def _run_sherpa_offline(websocket: WebSocket, spec):
     running = True
     client_disconnected = False
     last_audio = time.monotonic()
+    quota_exceeded = False
     # Trailing-silence gate window, in bytes of int16 mono PCM.
     sil_bytes = max(2, int(SHERPA_OFFLINE_SILENCE_S * pcm_sr) * 2)
 
@@ -1030,7 +1050,7 @@ async def _run_sherpa_offline(websocket: WebSocket, spec):
         return backend._decode_offline(samples, pcm_sr)
 
     async def receive():
-        nonlocal running, client_disconnected, last_audio, heard_speech
+        nonlocal running, client_disconnected, last_audio, heard_speech, quota_exceeded
         try:
             while running:
                 kind, pcm = await _recv_pcm_frame(websocket, aec)
@@ -1039,6 +1059,25 @@ async def _run_sherpa_offline(websocket: WebSocket, spec):
                     break
                 if kind == "skip":
                     continue
+                if len(pcm) > MAX_STREAM_BUFFER_BYTES:
+                    logger.warning(
+                        "sherpa offline frame exceeded limit (%d > %d bytes), terminating stream",
+                        len(pcm),
+                        MAX_STREAM_BUFFER_BYTES,
+                    )
+                    quota_exceeded = True
+                    running = False
+                    await _send({"type": "error", "error": "stream audio buffer limit exceeded"})
+                    break
+                if len(buf) + len(pcm) > MAX_STREAM_BUFFER_BYTES:
+                    logger.warning(
+                        "sherpa offline buffer exceeded limit (%d bytes), committing early",
+                        MAX_STREAM_BUFFER_BYTES,
+                    )
+                    if buf:
+                        snapshot = bytes(buf)
+                        buf.clear()
+                        await asyncio.shield(_commit(snapshot))
                 buf.extend(pcm)
                 session_pcm.extend(pcm)
                 if not heard_speech and _pcm16_rms(pcm) >= SHERPA_OFFLINE_RMS_FLOOR:
@@ -1051,25 +1090,27 @@ async def _run_sherpa_offline(websocket: WebSocket, spec):
             logger.debug("sherpa offline receive ended: %s", e)
             running = False
 
+    commit_lock = asyncio.Lock()
+
     async def _commit(snapshot: bytes):
-        """Finalize one utterance: decode it off-thread, flush a polished
-        `final`, drop its samples from the live buffer. `receive()` may
-        append while we decode — only the snapshot's prefix is dropped."""
-        nonlocal last_partial
-        try:
-            text = await asyncio.to_thread(_decode_window, snapshot)
-        except Exception as e:
-            logger.debug("sherpa offline commit decode failed: %s", e)
-            return
-        del buf[:len(snapshot)]
-        last_partial = ""
-        text = polish_text(text)
-        if text:
-            committed.append(text)
-            await _send({"type": "final", "text": text,
-                         "final_kind": "utterance",
-                         "segments": [{"start": 0.0, "end": None, "text": text}],
-                         "language": "auto", "engine": backend.id})
+        """Finalize one utterance: decode it off-thread and flush a polished
+        `final`. Samples are removed from the live buffer at snapshot time so
+        concurrent receives append to fresh buffer without double-deletion."""
+        async with commit_lock:
+            nonlocal last_partial
+            try:
+                text = await asyncio.to_thread(_decode_window, snapshot)
+            except Exception as e:
+                logger.debug("sherpa offline commit decode failed: %s", e)
+                return
+            last_partial = ""
+            text = polish_text(text)
+            if text:
+                committed.append(text)
+                await _send({"type": "final", "text": text,
+                             "final_kind": "utterance",
+                             "segments": [{"start": 0.0, "end": None, "text": text}],
+                             "language": "auto", "engine": backend.id})
 
     async def partials():
         nonlocal last_partial, running
@@ -1081,7 +1122,8 @@ async def _run_sherpa_offline(websocket: WebSocket, spec):
             if len(snapshot) > sil_bytes and \
                     _pcm16_rms(snapshot[-sil_bytes:]) < SHERPA_OFFLINE_RMS_FLOOR:
                 if _pcm16_rms(snapshot[:-sil_bytes]) >= SHERPA_OFFLINE_RMS_FLOOR:
-                    await _commit(snapshot)
+                    buf.clear()
+                    await asyncio.shield(_commit(snapshot))
                 else:
                     # Pure silence — drop it (keep the gate window for
                     # continuity) so a long pause can't grow the buffer.
@@ -1108,25 +1150,29 @@ async def _run_sherpa_offline(websocket: WebSocket, spec):
             except (asyncio.CancelledError, Exception):
                 pass
 
-    # Drain the trailing (un-committed) utterance on EOF.
-    try:
-        tail = await asyncio.to_thread(_decode_window, bytes(buf))
-    except Exception:
-        logger.exception("sherpa offline final failed")
-        tail = ""
-    tail = polish_text(tail)
-    if tail:
-        committed.append(tail)
-    # Pieces are already polished; the join is too (polish is idempotent).
-    full = " ".join(committed).strip()
-    segments = [{"start": 0.0, "end": None, "text": t} for t in committed]
+    full = ""
+    segments = []
+    if not quota_exceeded:
+        # Drain the trailing (un-committed) utterance on EOF, ensuring any in-flight
+        # shielded commit completes first so utterances are not lost on EOF.
+        async with commit_lock:
+            try:
+                tail = await asyncio.to_thread(_decode_window, bytes(buf))
+            except Exception:
+                logger.exception("sherpa offline final failed")
+                tail = ""
+            tail = polish_text(tail)
+            if tail:
+                committed.append(tail)
+            full = " ".join(committed).strip()
+            segments = [{"start": 0.0, "end": None, "text": t} for t in committed]
 
     # Silent-model fallback: we heard speech-level audio but the selected
     # sherpa model returned nothing at all. That is a broken engine, not a
     # quiet user — hand the session to the capture ASR backend so the user
     # still gets their words, and say which model let them down. Bounded to
     # this session; the pref is left alone so the user stays in control.
-    model_silent = is_model_silent(full, heard_speech, session_pcm.total_bytes)
+    model_silent = is_model_silent(full, heard_speech, session_pcm.total_bytes) if not quota_exceeded else False
     if model_silent:
         recovered, recovered_segments = await _recover_silent_sherpa(
             spec, session_pcm.tail(), pcm_sr,
@@ -1135,7 +1181,7 @@ async def _run_sherpa_offline(websocket: WebSocket, spec):
             full = recovered
             segments = recovered_segments
 
-    if not client_disconnected:
+    if not client_disconnected and not quota_exceeded:
         payload = {"type": "final", "text": full, "final_kind": "summary",
                    "segments": segments,
                    "language": "auto", "engine": backend.id}
@@ -1159,6 +1205,8 @@ async def _run_sherpa_offline(websocket: WebSocket, spec):
             except Exception:
                 pass
         await _send(payload)
+
+    if not client_disconnected:
         try:
             await websocket.close()
         except Exception:
