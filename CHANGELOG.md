@@ -10,6 +10,16 @@ metadata and the backend fallback mirror it.
 
 **Highlights**
 
+- File transcription keeps running when you leave the Transcribe page
+- Optional speaker labels for accurate file transcription
+
+### Added
+
+- Transcribe adds an Identify speakers switch in accurate mode, with speaker labels in segments and exports (#2691)
+
+### Fixed
+
+- File transcription no longer cancels when you leave the Transcribe page; the result is saved and a toast links back to it (#2691)
 - The open-source app no longer contains a licence-key client
 
 ### Removed

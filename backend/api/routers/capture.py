@@ -54,6 +54,8 @@ async def transcribe_audio(
     mode: Optional[str] = Form(None),
     refine: Optional[str] = Form(None),
     dictation: Optional[str] = Form(None),
+    diarize: Optional[str] = Form(None),
+    num_speakers: Optional[str] = Form(None),
 ):
     """Transcribe an audio file to text.
 
@@ -78,6 +80,13 @@ async def transcribe_audio(
               transcription and MCP/CLI callers are never biased by it;
               ignored in 'reference' mode.
 
+        diarize: Opt-in speaker identification ('accurate' mode only, which
+              is the mode with segment timings). Each segment gains a
+              ``speaker`` label and the response a ``speakers`` list. If the
+              diarization model is missing or fails, the transcript is still
+              returned with a ``diarization_error`` code and no labels.
+        num_speakers: Optional exact speaker count hint for diarization.
+
     Returns:
         {
             "text": "full transcription",
@@ -94,6 +103,15 @@ async def transcribe_audio(
     # Save upload to a temp file (all backends need a file path)
     ext = upload_suffix(audio.filename, ".wav") or ".wav"
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
+
+    def _cleanup_tmp() -> None:
+        try:
+            os.unlink(tmp.name)
+        except OSError:
+            pass
+
+    # Set while a worker that reads the upload may outlive this request.
+    defer_tmp_cleanup = False
     try:
         content = await audio.read()
         tmp.write(content)
@@ -317,28 +335,58 @@ async def transcribe_audio(
             refined_text is not None,
         )
 
+        out_segments = [
+            {
+                "start": _timing(s.get("start", 0)),
+                "end": _timing(s.get("end", 0)),
+                "text": s.get("text", "").strip(),
+            }
+            for s in segments
+        ]
+        speakers: list[str] = []
+        diarization_error = None
+        if _truthy(diarize) and use_accurate:
+            from services.transcript_diarization import diarize_segments, parse_speaker_hint
+
+            try:
+                labels, diarization_error = await run_transcribe_guarded(
+                    _gpu_pool,
+                    lambda: diarize_segments(tmp.name, out_segments, parse_speaker_hint(num_speakers)),
+                    what="Speaker identification",
+                    # A timed-out or cancelled worker may still be reading the
+                    # upload: the guard deletes it once the worker has exited.
+                    on_abandon=_cleanup_tmp,
+                )
+            except ASRTimeoutError as exc:
+                defer_tmp_cleanup = True
+                logger.warning("Speaker identification timed out: %s", exc)
+                labels, diarization_error = [None] * len(out_segments), "DIARIZATION_TIMEOUT"
+            except asyncio.CancelledError:
+                defer_tmp_cleanup = True
+                raise
+            for segment, label in zip(out_segments, labels):
+                if label:
+                    segment["speaker"] = label
+                    if label not in speakers:
+                        speakers.append(label)
+
         response = {
             "text": full_text,
-            "segments": [
-                {
-                    "start": _timing(s.get("start", 0)),
-                    "end": _timing(s.get("end", 0)),
-                    "text": s.get("text", "").strip(),
-                }
-                for s in segments
-            ],
+            "segments": out_segments,
             "language": detected_lang,
             "duration_s": round(duration, 2),
             "transcription_time_s": elapsed,
             "engine": engine_id,
         }
+        if speakers:
+            response["speakers"] = speakers
+        if diarization_error:
+            response["diarization_error"] = diarization_error
         if refined_text is not None:
             response["refined_text"] = refined_text
         if recovered_from is not None:
             response["model_silent"] = recovered_from
         return response
     finally:
-        try:
-            os.unlink(tmp.name)
-        except OSError:
-            pass
+        if not defer_tmp_cleanup:
+            _cleanup_tmp()
