@@ -135,6 +135,36 @@ def test_spell_out_strips_and_joins_whitespace():
     assert spell_out("") == ""
 
 
+def test_spell_out_keeps_combining_marks_with_their_base():
+    # NFD input (e + combining acute) must spell as "c a f é", with the
+    # combining mark kept on the base character rather than spoken alone.
+    # Mirrors the JS-side fix in 55f3d58 (electron/src/shared/ssmlLite).
+    import unicodedata
+
+    nfd = unicodedata.normalize("NFD", "café")
+    assert spell_out(nfd) == "c a f é"
+    assert spell_out(unicodedata.normalize("NFD", "Zürich")) == "Z ü r i c h"
+
+
+def test_spell_out_collapses_nfd_hangul_jamo_to_one_unit():
+    # Hangul syllables in NFD are 2-3 conjoining jamo per syllable; NFC
+    # normalization collapses each syllable to one code point, which is the
+    # unit we want to space.
+    import unicodedata
+
+    composed = "한글"
+    jamo = unicodedata.normalize("NFD", composed)
+    assert spell_out(composed) == "한 글"
+    assert spell_out(jamo) == "한 글"
+
+
+def test_spell_out_handles_precomposed_unicode_letters():
+    # Each precomposed accented letter is a single code point; this is the
+    # case the old code already handled and the new code must not regress.
+    assert spell_out("naïve") == "n a ï v e"
+    assert spell_out("piñata") == "p i ñ a t a"
+
+
 def test_redos_safe_on_adversarial_input():
     # Many bracket-like fragments must not blow up (linear-time guarantee).
     import time

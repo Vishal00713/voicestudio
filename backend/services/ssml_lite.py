@@ -36,6 +36,7 @@ no quantifier overlap, so matching is linear in the input length.
 from __future__ import annotations
 
 import re
+import unicodedata
 from typing import Optional
 
 # Speed multipliers. ``None`` means "engine default" (no override emitted).
@@ -139,17 +140,55 @@ def parse_ssml_lite(text: str) -> list[dict]:
     return segments
 
 
+def _grapheme_units(text: str) -> list[str]:
+    """Split text into user-perceived characters (grapheme clusters).
+
+    Iterating a Python ``str`` yields Unicode code points, not grapheme
+    clusters: ``é`` in NFD (the letter ``e`` plus the combining acute
+    U+0301) is two code points, and a regional-indicator pair like
+    ``🇺🇸`` is two code points whose visible meaning only exists as a pair.
+    Naive code-point iteration would space those clusters apart and let the
+    engine speak a stray combining mark or a half-flag.
+
+    A full grapheme-cluster segmentation belongs in a dedicated library
+    (``grapheme`` / ``regex`` ``\\X``); the deps file does not pull one in
+    directly. This stdlib-only helper covers the cases that actually reach
+    the longform spelling path today:
+
+    1. NFC-normalize first so common decomposed sequences (Latin diacritics,
+       precomposed vs. conjoining-jamo Hangul) collapse to a single code
+       point.
+    2. Walk the NFC text; any ``unicodedata.combining`` code point is
+       appended to the previous unit instead of starting a new one. This
+       keeps a base character with any trailing marks even when a caller
+       passes text that was already combined by the OS keyboard.
+    """
+    if not text:
+        return []
+    normalized = unicodedata.normalize("NFC", text)
+    units: list[str] = []
+    for ch in normalized:
+        if units and unicodedata.combining(ch):
+            units[-1] += ch
+        else:
+            units.append(ch)
+    return units
+
+
 def spell_out(word: str) -> str:
     """Space out a run for the ``[spell]`` case: ``"USA"`` → ``"U S A"``.
 
-    Collapses surrounding whitespace, then joins the remaining characters with
-    single spaces so the engine pronounces each letter discretely. Whitespace
-    inside the run is treated as a separator (each token spelled, joined by a
-    single space), so ``"go USA"`` → ``"g o U S A"``.
+    Collapses surrounding whitespace, then joins the remaining *grapheme
+    units* with single spaces so the engine pronounces each visible
+    character discretely. Whitespace inside the run is treated as a
+    separator (each token spelled, joined by a single space), so
+    ``"go USA"`` → ``"g o U S A"``. See :func:`_grapheme_units` for why
+    ``str`` code-point iteration alone is not enough.
     """
     if not word:
         return ""
-    # Drop all existing whitespace, then interleave the visible characters with
-    # spaces. ``split()`` + ``"".join`` removes runs of whitespace first.
+    # Drop all existing whitespace, then interleave the visible characters
+    # with spaces. ``split()`` + ``"".join`` removes runs of whitespace
+    # first.
     compact = "".join(word.split())
-    return " ".join(compact)
+    return " ".join(_grapheme_units(compact))
