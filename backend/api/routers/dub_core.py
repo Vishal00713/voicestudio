@@ -984,6 +984,12 @@ async def dub_ingest_url(req: DubIngestUrlRequest, request: Request):
             task_id, "prep",
             _ingest_gen, job_id, job_dir,
             source, None,
+            # A task cancelled while queued never starts, so the ingest
+            # pipeline's own cleanup would not run for the staged cookies.
+            on_cancel=(
+                (lambda: dub_pipeline._delete_cookie_export(cookie_path))
+                if cookie_path else None
+            ),
         )
     except Exception:
         if cookie_path:

@@ -11,10 +11,15 @@ metadata and the backend fallback mirror it.
 **Highlights**
 
 - The open-source app no longer contains a licence-key client
+- Cancelled queued tasks no longer start work
 
 ### Removed
 
 - The unused licence-key client and its Lemon Squeezy network call are gone from the open-source app (#2812)
+
+### Fixed
+
+- Cancelled queued tasks skip execution and retain cancelled status in the task stream and job history (#2800) — thanks @rudycelekli!
 
 ## [0.5.7] — 2026-10-13
 
