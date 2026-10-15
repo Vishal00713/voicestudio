@@ -43,16 +43,20 @@ def available_memory() -> dict:
         vm = psutil.virtual_memory()
         out["ram_available_gb"] = round(vm.available / (1024 ** 3), 2)
         out["ram_total_gb"] = round(vm.total / (1024 ** 3), 2)
-    except Exception:  # noqa: BLE001 — psutil missing/failed: RAM unknown, not fatal
-        pass
+    except Exception as exc:  # noqa: BLE001 — psutil missing/failed: RAM unknown, not fatal
+        from core.scrub import scrub_text
+
+        logger.debug("System RAM query failed: %s", scrub_text(str(exc)))
     try:
         torch = __import__("torch")
         if torch.cuda.is_available():
             free, total = torch.cuda.mem_get_info()
             out["vram_free_gb"] = round(free / (1024 ** 3), 2)
             out["vram_total_gb"] = round(total / (1024 ** 3), 2)
-    except Exception:  # noqa: BLE001 — no CUDA / probe failed
-        pass
+    except Exception as exc:  # noqa: BLE001 — no CUDA / probe failed
+        from core.scrub import scrub_text
+
+        logger.debug("GPU VRAM query failed: %s", scrub_text(str(exc)))
     return out
 
 

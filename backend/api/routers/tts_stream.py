@@ -321,8 +321,12 @@ async def ws_tts(websocket: WebSocket):
                     from services.memory_budget import log_if_low
 
                     log_if_low(f"TTS stream load ({engine_id or 'active engine'})")
-                except Exception:
-                    pass
+                except Exception as exc:
+                    from core.scrub import scrub_text
+
+                    logger.debug(
+                        "Memory budget check failed before stream load: %s", scrub_text(str(exc))
+                    )
                 backend = await _resolve_stream_backend(engine_id)
                 from services.tts_backend import engine_in_use
 
