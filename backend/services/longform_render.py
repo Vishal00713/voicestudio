@@ -34,12 +34,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import math
 import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Optional
+
+logger = logging.getLogger("omnivoice.longform_render")
 
 from services.ffmpeg_utils import local_inputs_only
 
@@ -498,8 +501,10 @@ class SegmentCache:
             from services.audio_io import atomic_save_wav
             os.makedirs(self.dir, exist_ok=True)
             atomic_save_wav(self._path(span, nonce), audio, self.sample_rate, durable=True)
-        except Exception:
-            pass
+        except Exception as exc:
+            from core.scrub import scrub_text
+
+            logger.debug("Failed to cache longform span: %s", scrub_text(str(exc)))
 
 
 # ── Loudness normalization ──────────────────────────────────────────────────
