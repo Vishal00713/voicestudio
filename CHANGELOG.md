@@ -18,6 +18,7 @@ metadata and the backend fallback mirror it.
 
 ### Fixed
 
+- Local marketplace installs keep designed voices and their saved design settings (#2878) — thanks @agammann!
 - Snap packages expand the Electron desktop runtime so they launch after installation (#2858)
 
 ## [0.5.7] — 2026-10-13
