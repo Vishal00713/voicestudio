@@ -503,8 +503,15 @@ async def _receive_event(websocket, provider: MediaStreamProvider) -> StreamEven
 async def _close(websocket, code: int) -> None:
     try:
         await websocket.close(code=code)
-    except Exception:  # noqa: BLE001 — already closed by the peer
-        pass
+    except Exception as exc:  # noqa: BLE001 — already closed by the peer
+        from core.scrub import scrub_text
+
+        logger.debug(
+            "WebSocket close exception for code=%s: %s",
+            code,
+            scrub_text(str(exc)),
+        )
+
 
 
 async def run_call(
