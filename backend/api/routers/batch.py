@@ -28,6 +28,7 @@ from core.logging_utils import log_safe
 from core.media_types import media_upload_suffix
 from core.path_security import contained_join, portable_filename
 from core.file_cleanup import FileCleanupError, unlink_if_present
+from core.scrub import scrub_text
 from services.dub_batching import (
     BATCH_WIDTH_ENV,
     batch_timeout_s as _batch_timeout_s,
@@ -339,8 +340,11 @@ async def _run_batch_pipeline_leased(job_id: str, job: dict, lease: voice_leases
             s.setdefault("text_original", s.get("text", ""))
         try:
             backend.unload()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning(
+                "Failed to unload ASR backend after batch transcription: %s",
+                scrub_text(str(exc)),
+            )
         return segments, detected_lang
 
     # Bound the batch transcribe (#730) so a wedged whisperx/CTranslate2 call
