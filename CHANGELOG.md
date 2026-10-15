@@ -10,6 +10,15 @@ metadata and the backend fallback mirror it.
 
 **Highlights**
 
+- Backend finishes its startup reconcile about twice as fast on Apple Silicon
+
+### Changed
+
+- The OmniVoice sidecar availability check no longer imports the model, so startup reconcile finishes about 6 s sooner (#2692)
+
+### Docs
+
+- Added a performance baseline with startup, memory and bundle measurements (#2692)
 - The open-source app no longer contains a licence-key client
 
 ### Removed
