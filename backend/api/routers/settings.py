@@ -222,7 +222,13 @@ def _offload_after_generation_state() -> dict:
 
     try:
         device = str(mm.get_best_device()).split(":", 1)[0]
-    except Exception:  # noqa: BLE001 — a device probe must not break Settings
+    except Exception as exc:  # noqa: BLE001 — a device probe must not break Settings
+        from core.scrub import scrub_text
+
+        logger.debug(
+            "Failed to probe best device in offload_after_generation_state, falling back to cpu: %s",
+            scrub_text(str(exc)),
+        )
         device = "cpu"
     return {
         "enabled": mm.offload_after_generation_enabled(),
@@ -842,7 +848,13 @@ def _local_models(base_url: str, api_key: str):
         from openai import OpenAI
         client = OpenAI(api_key=api_key, base_url=base_url, max_retries=0)
         return sorted(m.id for m in client.models.list(timeout=5))
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
+        from core.scrub import scrub_provider_error
+
+        logger.debug(
+            "Failed to list local models: %s",
+            scrub_provider_error(exc, api_key),
+        )
         return None
 
 
