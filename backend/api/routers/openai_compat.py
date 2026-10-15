@@ -217,8 +217,13 @@ def _resolve_voice_profile(voice: str):
             ]
             if len(ids) == 1:
                 return conn.execute("SELECT * FROM voice_profiles WHERE id=?", (ids[0],)).fetchone()
-    except Exception:
-        logger.warning("Voice profiles could not be read; treating voice as an engine preset")
+    except Exception as exc:
+        from core.scrub import scrub_text
+
+        logger.warning(
+            "Voice profiles could not be read; treating voice as an engine preset: %s",
+            scrub_text(str(exc)),
+        )
         return None
     if len(ids) > 1:
         message = (
@@ -381,7 +386,13 @@ def _known_engine_ids() -> str:
     try:
         from services.tts_backend import list_backends
         return ", ".join(b["id"] for b in list_backends())
-    except Exception:
+    except Exception as exc:
+        from core.scrub import scrub_text
+
+        logger.debug(
+            "Failed to list TTS backends, falling back to defaults: %s",
+            scrub_text(str(exc)),
+        )
         return "omnivoice, voxcpm2, cosyvoice, kittentts, indextts2"
 
 
@@ -883,7 +894,14 @@ def _is_asr_engine_id(model: Optional[str]) -> bool:
     from services.asr_backend import _REGISTRY
     try:
         return model in _REGISTRY
-    except Exception:
+    except Exception as exc:
+        from core.scrub import scrub_text
+
+        logger.debug(
+            "Failed to query ASR engine registry for %s: %s",
+            model,
+            scrub_text(str(exc)),
+        )
         return False
 
 
@@ -1327,8 +1345,13 @@ def list_voices():
                 "addressable_by_name": bool(key) and name_counts[key] == 1
                 and not _name_is_reserved(key),
             })
-    except Exception:
-        logger.warning("Voice profiles could not be loaded; returning built-in aliases only")
+    except Exception as exc:
+        from core.scrub import scrub_text
+
+        logger.warning(
+            "Voice profiles could not be loaded; returning built-in aliases only: %s",
+            scrub_text(str(exc)),
+        )
 
     return {"voices": voices, "engines": backends}
 
