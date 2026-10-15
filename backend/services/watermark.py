@@ -581,8 +581,12 @@ def detect_watermark(
                     message_bits = "".join(str(int(b > 0.5)) for b in bits)
                     decoded_list = [int(b > 0.5) for b in bits]
                     is_omnivoice = decoded_list == OMNI_MESSAGE
-            except Exception:
-                pass
+            except Exception as exc:
+                from core.scrub import scrub_text
+
+                logger.debug(
+                    "Failed to decode watermark message bits: %s", scrub_text(str(exc))
+                )
 
         return {
             "is_watermarked": confidence > 0.5,
