@@ -1,11 +1,11 @@
 import { createTrayIcon } from './tray-icon';
 import { installWatchFolders } from './watch-folders';
 import { installNativeCapture } from './native-capture';
-import { isTrustedRenderer } from './trusted-renderer';
+import { attachNavigationGuards, openOutside } from './navigation-guard';
 import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { app, BrowserWindow, ipcMain, Menu, nativeImage, session, shell, Tray } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, nativeImage, session, Tray } from 'electron';
 import { electronApp, is, optimizer } from '@electron-toolkit/utils';
 import { BackendSupervisor, backendRoot } from './backend';
 import { registerIpc, wireWindowMaximizeEvents } from './ipc';
@@ -184,15 +184,7 @@ function createWindow(): BrowserWindow {
     },
   );
 
-  win.webContents.setWindowOpenHandler(({ url }) => {
-    void openOutside(url);
-    return { action: 'deny' };
-  });
-  win.webContents.on('will-navigate', (event, url) => {
-    if (isOwnUrl(url)) return;
-    event.preventDefault();
-    void openOutside(url);
-  });
+  attachNavigationGuards(win.webContents, openOutside);
 
   if (is.dev && process.env.ELECTRON_RENDERER_URL) {
     // The blank-window guard owns bounded renderer recovery; consume the load
@@ -203,26 +195,6 @@ function createWindow(): BrowserWindow {
     void win.loadURL(appUrl).catch(() => {});
   }
   return win;
-}
-
-function isOwnUrl(url: string): boolean {
-  const dev = process.env.ELECTRON_RENDERER_URL;
-  return isTrustedRenderer(url, dev);
-}
-
-async function openOutside(url: string): Promise<void> {
-  try {
-    const parsed = new URL(url);
-    if (
-      parsed.protocol === 'http:' ||
-      parsed.protocol === 'https:' ||
-      parsed.protocol === 'mailto:'
-    ) {
-      await shell.openExternal(parsed.toString());
-    }
-  } catch {
-    /* unparsable URLs are simply dropped */
-  }
 }
 
 if (process.env.VOICESTUDIO_ALLOW_MULTIPLE_INSTANCES !== '1' && !app.requestSingleInstanceLock()) {

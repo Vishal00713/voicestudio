@@ -144,6 +144,7 @@ export function installNativeCapture(
     recorder = win;
     win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     win.webContents.on('will-navigate', (event) => event.preventDefault());
+    win.webContents.on('will-frame-navigate', (event) => event.preventDefault());
     const disconnected = () => {
       unregister?.();
       unregister = null;
