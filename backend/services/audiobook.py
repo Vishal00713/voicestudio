@@ -23,9 +23,13 @@ ingestion, the streaming synth job + UI are deferred follow-ups.
 from __future__ import annotations
 
 import json
+import logging
 import zlib
 from dataclasses import dataclass, field
 from typing import Callable, Optional
+
+logger = logging.getLogger("omnivoice.audiobook")
+
 
 
 #: Mix constant for the per-occurrence seed nonce (#1208) — a large odd
@@ -317,8 +321,13 @@ def _note_chunk_done() -> None:
         from services.model_manager import report_generate_progress
 
         report_generate_progress()
-    except Exception:  # noqa: BLE001 — a liveness signal must not break a render
-        pass
+    except Exception as exc:  # noqa: BLE001 — a liveness signal must not break a render
+        from core.scrub import scrub_text
+
+        logger.debug(
+            "Failed to report audiobook chunk progress: %s", scrub_text(str(exc))
+        )
+
 
 
 def _gap_after_span(span: Span, line_gap_ms: int, paragraph_gap_ms: int) -> int:
