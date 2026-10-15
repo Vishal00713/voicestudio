@@ -1,6 +1,6 @@
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
-import { extname, join, normalize, resolve, sep } from 'node:path';
+import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { Readable } from 'node:stream';
 import { net, protocol } from 'electron';
 
@@ -145,18 +145,30 @@ async function proxyToBackend(
   }
 }
 
-async function serveStatic(root: string, pathname: string): Promise<Response> {
+const SECURITY_HEADERS = {
+  'x-content-type-options': 'nosniff',
+  'x-frame-options': 'DENY',
+  'cross-origin-resource-policy': 'same-origin',
+} as const;
+
+export async function serveStatic(root: string, pathname: string): Promise<Response> {
   let decoded: string;
   try {
     decoded = decodeURIComponent(pathname);
   } catch {
-    return new Response('Bad request', { status: 400 });
+    return new Response('Bad request', { status: 400, headers: { ...SECURITY_HEADERS } });
   }
-  if (decoded.includes('\0')) return new Response('Bad request', { status: 400 });
-  const relative = normalize(decoded).replace(/^[/\\]+/, '');
-  const candidate = resolve(root, relative || 'index.html');
-  if (candidate !== root && !candidate.startsWith(root + sep)) {
-    return new Response('Forbidden', { status: 403 });
+  if (decoded.includes('\0')) {
+    return new Response('Bad request', { status: 400, headers: { ...SECURITY_HEADERS } });
+  }
+  if (decoded.split(/[/\\]/).includes('..')) {
+    return new Response('Forbidden', { status: 403, headers: { ...SECURITY_HEADERS } });
+  }
+  const relPath = decoded.replace(/^[/\\]+/, '');
+  const candidate = resolve(root, relPath || 'index.html');
+  const rel = relative(root, candidate);
+  if (rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+    return new Response('Forbidden', { status: 403, headers: { ...SECURITY_HEADERS } });
   }
   const file = await fileResponse(candidate);
   if (file) return file;
@@ -165,10 +177,10 @@ async function serveStatic(root: string, pathname: string): Promise<Response> {
     const index = await fileResponse(join(root, 'index.html'));
     if (index) return index;
   }
-  return new Response('Not found', { status: 404 });
+  return new Response('Not found', { status: 404, headers: { ...SECURITY_HEADERS } });
 }
 
-async function fileResponse(path: string): Promise<Response | null> {
+export async function fileResponse(path: string): Promise<Response | null> {
   let size: number;
   try {
     const info = await stat(path);
@@ -185,6 +197,7 @@ async function fileResponse(path: string): Promise<Response | null> {
       'content-type': mime,
       'content-length': String(size),
       'cache-control': mime.startsWith('text/html') ? 'no-cache' : 'public, max-age=3600',
+      ...SECURITY_HEADERS,
     },
   });
 }
