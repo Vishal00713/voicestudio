@@ -9,8 +9,8 @@ metadata and the backend fallback mirror it.
 ## [Unreleased]
 
 **Highlights**
-
 - The open-source app no longer contains a licence-key client
+- Voice cloning on 8 GB unified-memory Macs frees the reference speech model before synthesis, so cloning no longer swaps until it times out (#2619)
 
 ### Removed
 
@@ -19,6 +19,9 @@ metadata and the backend fallback mirror it.
 ### Fixed
 
 - Snap packages expand the Electron desktop runtime so they launch after installation (#2858)
+- Voice cloning on 8 GB unified-memory Macs frees the reference speech model before synthesis, so cloning no longer swaps until it times out (#2619)
+- Voice-clone references without a transcript are encoded once per engine process and logged without their spoken text (#2619)
+- Reference passages trim leading and trailing silence before selection, so clones no longer start or end mid-pause (#2619)
 
 ## [0.5.7] — 2026-10-13
 
