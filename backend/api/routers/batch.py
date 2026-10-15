@@ -26,7 +26,12 @@ from core.config import DATA_DIR
 from core import failure, voice_leases
 from core.logging_utils import log_safe
 from core.media_types import media_upload_suffix
-from core.path_security import contained_join, portable_filename
+from core.path_security import (
+    contained_join,
+    portable_filename,
+    resolve_within,
+    UnsafePath,
+)
 from core.file_cleanup import FileCleanupError, unlink_if_present
 from services.dub_batching import (
     BATCH_WIDTH_ENV,
@@ -1079,12 +1084,22 @@ def download_batch_output(job_id: str, lang: str):
 
     outputs = job.get("outputs", {})
     path = outputs.get(lang)
-    if not path or not os.path.exists(path):
+    if not path:
+        raise HTTPException(404, f"No output for language '{lang}'")
+
+    batch_root = os.path.realpath(os.path.join(DATA_DIR, "batch"))
+    real_path = os.path.realpath(path)
+    try:
+        resolved_path = resolve_within(batch_root, real_path)
+    except UnsafePath:
+        raise HTTPException(400, "Invalid batch output file path")
+
+    if not resolved_path.is_file():
         raise HTTPException(404, f"No output for language '{lang}'")
 
     filename = portable_filename(f"{os.path.splitext(job['filename'])[0]}_{lang}.mp4", "output.mp4")
     return FileResponse(
-        path,
+        str(resolved_path),
         media_type="video/mp4",
         filename=filename,
     )
