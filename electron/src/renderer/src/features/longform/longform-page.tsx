@@ -52,7 +52,7 @@ import { useProfiles } from '@/hooks/use-profiles';
 import { apiJson, apiPath, describeError } from '@/lib/api/client';
 import { saveExport } from '@/lib/export-history';
 import { EngineLanguagePicker } from '@/features/clone/engine-language-picker';
-import { LANG_CODES } from '@shared/utils/languages';
+import { outputLanguageOptions } from './output-languages';
 import {
   editLongform,
   dismissLongformError,
@@ -81,6 +81,7 @@ export function LongformPage({ mode }: { mode: Mode }) {
     mode === 'audiobook' ? draft.script : draft.lines.map((line) => line.text).join('\n');
   const names = useMemo(() => parseCastNames(text), [text]);
   const stats = useMemo(() => scriptStats(text), [text]);
+  const languageOptions = useMemo(() => outputLanguageOptions(draft.language), [draft.language]);
   const { data: profiles = [] } = useProfiles();
   const [importing, setImporting] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -273,7 +274,7 @@ export function LongformPage({ mode }: { mode: Mode }) {
               <EngineLanguagePicker
                 operation={ttsOperation}
                 value={draft.language}
-                options={['Auto', ...LANG_CODES.map((l) => l.label)]}
+                options={languageOptions}
                 disabled={locked}
                 onValueChange={(language) => set({ language })}
               />

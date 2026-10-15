@@ -19,6 +19,7 @@ metadata and the backend fallback mirror it.
 ### Fixed
 
 - Snap packages expand the Electron desktop runtime so they launch after installation (#2858)
+- Stories and Audiobook list every narration language the active voice engine supports, including Uyghur, as Clone does (#2810) — thanks @vinay121314!
 
 ## [0.5.7] — 2026-10-13
 
