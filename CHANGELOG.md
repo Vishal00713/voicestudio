@@ -166,6 +166,7 @@ This release also adds a GPU acceleration panel with honest Radeon reporting, th
 
 ### Fixed
 
+- Settings → System reports an Ascend NPU host's device name and VRAM, and the memory-flush snapshot reads the NPU and Intel XPU (#2582)
 - A fresh install no longer logs settings errors before its database is created (#2776)
 - The model licence dialog says when licences are accepted and no longer assumes an action is waiting (#2776)
 - First-run model packs name each model, so two dictation engines no longer both read Dictation (#2776)
