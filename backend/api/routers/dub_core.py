@@ -22,6 +22,7 @@ from core.logging_utils import log_safe
 from core.media_types import AUDIO_EXTS, MEDIA_EXTS, media_extension, media_upload_suffix, unsupported_media_detail
 from core.url_safety import UnsafeURLError, check_public_url, is_manifest_head, is_manifest_file
 from core.failure import InvalidMediaFileError
+from core.scrub import scrub_text
 from core import event_bus
 from schemas.requests import CleanupSegmentsRequest, DubIngestUrlRequest, ParseSubtitleTextRequest
 from services.srt_parser import CUE_SOURCE_FIELDS, CUE_SOURCE_ID
@@ -1755,8 +1756,8 @@ async def dub_transcribe_stream(
             # kept for the post-diarization speaker re-split (#486).
             try:
                 all_words.extend(_words_from_whisper(part))
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("word extraction skipped for chunk %d: %s", i, scrub_text(str(e)))
             # #280: Whisper often stretches a segment's start back over
             # leading music/silence (classic case: speech begins at 0:03,
             # transcript says 0.0 → the dub plays 3 s early). Snap starts
@@ -1768,7 +1769,7 @@ async def dub_transcribe_stream(
                 snap_segment_starts(chunk_segs, audio_np, sr,
                                     separated_vocals=asr_on_vocals)
             except Exception as e:
-                logger.warning("onset alignment skipped for chunk %d: %s", i, e)
+                logger.warning("onset alignment skipped for chunk %d: %s", i, scrub_text(str(e)))
             # Provisional per-chunk labels for the streaming UI only — the
             # final diarization pass below overwrites them. Honor the user's
             # speaker-count hint here too so the interim view doesn't flip
